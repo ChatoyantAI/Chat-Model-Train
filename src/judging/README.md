@@ -20,6 +20,8 @@ Qwen 和 GLM 各覆盖完整母集的 25%（各 28,937 条），样本互不重�
 
 `turn/` 保存 v4.7 prompt contract 来源、首批执行、Elite A 全量准备、结果聚合和选择政策分析代码。脚本只从环境变量读取服务凭证。
 
+Turn Judge 的 302,500 条有效结果是技术 evaluation rows。由于一个 root conversation 可以按 replay mode、memory 和 boundary 形成多个技术 dialogue，同一原生 assistant event 可能在不同可见 context 下被展开和评估多次。最终选择前按 `(conversation_id, assistant_increase_id)` 归并为 296,959 条 unique native replies；归并的是同一回复的重复评估视图，不是跨 conversation 文本去重，也不是 Fork 归并。代表行优先原始 body hash 一致和 context 更完整，不按多个 Judge 分数取最高值。
+
 远端聚合结果：
 
 ```text

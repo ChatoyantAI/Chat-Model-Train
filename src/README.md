@@ -83,7 +83,7 @@ preprocessing
 | `prepare_lusy_v47_full_a.py` | 将 Elite A 展开成全量逐 turn 请求和 expectation sidecar |
 | `audit_full_a_turns.py` | 运行前核对 turn 数、上下文边界、长度和 prompt hash |
 | `aggregate_a_all.py` | 合并两半 runner 和 retry 结果，输出 302,500 条 turn rows 与 dialogue 聚合 |
-| `analyze_selection_policy.py` | 做 native reply 归并、质量/NSFW/语言/长度/实体分布分析，供 50K selector 设计使用 |
+| `analyze_selection_policy.py` | 按原生 conversation/event key 分析重复评估行归并及质量/NSFW/语言/长度/实体分布，供 50K selector 设计使用；不做跨 conversation 文本去重 |
 
 旧 50K selector 的独立执行文件没有保留下来；`analyze_selection_policy.py` 不是 selector 本体。
 

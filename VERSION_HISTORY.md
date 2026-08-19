@@ -26,6 +26,8 @@
 → 50,000 selected records
 ```
 
+`302,500 → 296,959` 是按 `(conversation_id, assistant_increase_id)` 归并同一原生回复在不同 replay/memory 技术 dialogue 中产生的重复评估行，不是跨 conversation 文本去重，也不是从 5,541 条文本抄袭中删重。
+
 关键参数：
 
 ```text

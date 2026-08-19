@@ -27,3 +27,9 @@
 ```
 
 这些脚本对应第一版链路，数据默认路径和 schema 面向该远端目录。仓库只补了本地辅助模块发现方式，没有改变筛选逻辑。
+
+## Fork 口径
+
+第一版候选构造采用 root-only 范围：Fork/non-root conversation 在进入 target 池前直接排除。`filter_liked_context_v2.py` 对 liked/Claude 等受保护来源也显式检查 `is_fork_conversation` 和 `is_root_conversation`，命中后记录 `fork_conversation` 排除原因。
+
+这不是 Fork-aware 去重：旧链路不会恢复 parent/child lineage，不比较父子质量，也不对 shared prefix 做 loss ownership。后续 MDS 产生的 replay/memory 技术 dialogue 属于同一 root conversation 的不同回放视图；它们在 Turn Judge 后按原生 conversation/event key 归并，和业务 Fork 是两种不同关系。不同 root conversations 之间的 exact/MinHash/semantic duplicate 也没有在 preprocessing 阶段全局归并。

@@ -92,7 +92,7 @@ Chat-Model-Train/
 | Dialogue Judge 有效结果 | 57,874 → 57,536 dialogues | 99.42% | 删除结构无效或请求失败 |
 | Elite A | 57,536 → 15,772 dialogues | 27.41% | 选出进入逐 turn 评估的最高层 |
 | Turn Judge | 302,523 → 302,500 turns | 99.99% | 因果逐回复质量评估与重试 |
-| 原生回复归并 | 302,500 → 296,959 replies | 98.17% | 按原生 conversation + assistant event 去重 |
+| 重复评估行归并 | 302,500 → 296,959 native replies | 98.17% | 同一原生回复只保留一个最终选择候选 |
 | 自动可选池 | 296,959 → 286,418 replies | 96.45% | 删除硬失败并隔离身份冲突 |
 | 最终 RP | 286,418 → 50,000 records | 17.46% | 质量排序、配比、实体 cap、阶段覆盖 |
 | 通用锚点 | 100,000 → 10,000 records | 10.00% | 按来源、任务、语言、长度分层抽取 |
@@ -101,6 +101,8 @@ Chat-Model-Train/
 ### 1. 冻结生产数据并保留版本历史
 
 数据窗口为 `[2026-03-20, 2026-07-20)`，数据库时间按 UTC 解释。生产库只读导出后，所有处理都在冻结文件上完成。
+
+第一版 SFT 候选范围只接受目标站点内 Public、有效的 root conversation；`is_fork_conversation=true`、`is_root_conversation=false` 或其它可确认的 non-root branch 在 target 构造前直接排除。因此老链路没有在 parent 与 child Fork 之间比较质量，也没有构造 lineage、计算 shared prefix 后择优保留：它采用的是“Fork 不进入候选池”，不是“Fork-aware 去重”。符合条件的 root parent 可以继续参与筛选，其 child branch 整体不参与。
 
 冻结内容包括消息版本、对话、角色、角色卡、用户 persona、memory、edit/regen、点赞点踩、订阅证据和模型/provider 信息。消息按稳定 conversation bucket 分片，并保留原始 event ID，便于后续因果重建和审计。
 
@@ -211,6 +213,8 @@ neutral pool 有 185,040 个 dialogues。主版本每个 cluster 取 `ceil(size 
 
 每条 dialogue 一旦入选，就保留其中所有可评分 assistant turns。两个 25% 分别向上取整，所以合计比严格的一半多 1 条；抽样阶段也没有向 Judge 暴露模型来源、点赞、reaction、订阅、edit/regen 或 MMR rank 等偏好信号。
 
+这里的 dialogue 是同一个 root conversation 按 `replay_mode + memory_id + memory boundary` 聚合出的技术评估单元，不是 Fork branch。相同原生 assistant event 可能因不同 replay boundary 出现在多个技术 dialogue 中，Turn Judge 后会再按 `(conversation_id, assistant_event_id)` 归并；这只消除同一原生回复的重复技术展开，不能替代不同原生 conversation 之间的内容去重。
+
 Judge 的核心维度均为 0–4 分：角色忠实、上下文连贯、对当前 user 的响应、剧情推进、写作和 trajectory health，另外记录 Greeting、质量下限、可用 turn 数、阶段证据和重复 flags。对话分先按下面的权重计算，再在各自 Judge family 内转成 rank percentile，避免直接混合 Qwen 与 GLM 的原始分：
 
 ```text
@@ -251,9 +255,11 @@ Elite A 展开为其可见 trajectory 中的 302,523 个 assistant turns。这�
 
 每个维度输出 `reason + 0–4 分`，另外给 repetition、flags、NSFW 和置信度。首次结构有效 291,417 条（96.33%）；11,106 条重试后得到 302,500 条有效结果，仅 23 条持续无效。首次全量运行约 134.97 美元，prompt cache hit 约 73.12%。对应实现和聚合工具位于 [`src/judging/turn`](src/judging/README.md)。
 
-### 7. 归并原生回复并选出 RP 50K
+### 7. 归并同一原生回复的重复评估行，并选出 RP 50K
 
-同一原生 assistant 回复可能因 replay boundary 被多次评估，所以先按 `(conversation_id, assistant_event_id)` 归并，而不是按 Judge 最高分多次参与抽样：
+这里的 302,500 是有效 Turn Judge evaluation rows，不等于 302,500 条不同的数据库回复。MDS 的技术 `dialogue_id` 由 `conversation_id + replay_mode + memory_id + memory boundary` 组成；同一个 root conversation 可以形成多个完整历史或 memory-tail 技术 dialogue。Turn Judge 会展开每个 Elite A 技术 dialogue 中可见的 assistant turns，因此同一条数据库 assistant event 可能在不同 replay context 下被评估多次。
+
+评估阶段保留这些行是合理的，因为上下文连贯、memory 一致性、关系连续性和重复判断会随可见 context 改变；但最终选择时必须恢复到原生回复单位，避免一条回复因拥有多个 replay view 而获得多次进入 50K 的机会或被重复训练。因此按 `(conversation_id, assistant_increase_id)` 归并：
 
 ```text
 302,500 Turn Judge rows
@@ -263,6 +269,10 @@ Elite A 展开为其可见 trajectory 中的 302,523 个 assistant turns。这�
 → 286,418 automatically selectable
 → 50,000 selected
 ```
+
+归并掉的 5,541 行是重复评估记录，不代表发现了 5,541 条文本抄袭，也不是 retry 重复；retry 已在 Turn Judge 聚合时处理。代表行不取 Judge 最高分，而是依次偏好：target body hash 与原始 text hash 一致、可见 context 更完整、stable hash 更靠前，避免多次评估带来“挑最高分”偏差。共有 233 个原生键出现不同 body hash，其中无法可靠解释的 47 条进入人工复核。
+
+这一步只归并同一原生 `(conversation_id, assistant_increase_id)` 的技术评估视图。它不处理业务 Fork，不合并不同 conversation 中内容相似的回复，也不是 exact/MinHash/semantic 文本去重。
 
 50K 占 286,418 条自动可选回复的 17.46%，不是均匀随机抽样。旧 selection report 记录的选择顺序是：
 
