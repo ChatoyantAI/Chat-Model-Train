@@ -1,0 +1,19 @@
+# Historical data-pipeline and evaluation dependencies.
+# Exact versions belong in each remote run manifest; this repository intentionally
+# avoids claiming a single environment for all archived pipeline generations.
+datasets
+huggingface-hub
+httpx
+lingua-language-detector
+numpy
+orjson
+pandas
+polars
+pyarrow
+pydantic
+PyYAML
+scikit-learn
+sentence-transformers
+tokenizers
+torch
+zstandard

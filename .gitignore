@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+
+# Datasets, model weights, and generated runs
+data/
+datasets/
+artifacts/
+runs/
+outputs/
+checkpoints/
+*.parquet
+*.jsonl
+*.jsonl.gz
+*.jsonl.zst
+*.arrow
+*.safetensors
+*.pt
+*.pth
+*.bin
+
+# Logs and temporary files
+*.log
+*.pid
+*.part
+*.partial
+.staging/
+tmp/
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
