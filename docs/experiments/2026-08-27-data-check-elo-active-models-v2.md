@@ -12,7 +12,8 @@
 - 数据库访问：生产只读 `reader`，Repeatable Read 一致性快照；
 - 截止后复核：2026-08-27 16:10:05.972 UTC 再次查询，新增比较0、新增选择0、generating 0；
 - 代码分支：`evaluation-elo-gyr`；
-- 代码版本：本实验报告所在PR；结果由 `evaluation-elo-gyr` 分支的 ELO ranking 实现生成，合并前以PR提交记录为准；
+- 可复现代码提交：`fd6d1367c7382ec6db5fb165836f916220dc1bc2`；后续文档修订不改变计算实现；
+- 运行环境：Python 3.12.10，无第三方运行时依赖；
 
 ## 数据口径
 
