@@ -62,6 +62,22 @@ General 10K selection manifest 冻结了 source、task、language、length decil
 
 v2.2 当前是结构合格候选母集，不是高质量训练集。
 
+第一轮全量独立样本 Data-Juicer 初筛：
+
+```text
+/home/gyr/lusychat-training/data-juicer-dialogue-v2.2-20260816/02_data_juicer/01_independent_v1
+```
+
+该 run 使用 Data-Juicer v1.5.5、CPU-only；256 buckets 全局合并，忽略 fork/lineage 关系。状态和紧凑结果位于 `07_dashboard/`，正式 Parquet 分支见 `02_exact_dedup/`、`03_minhash_branch/`、`04_simhash_branch/`、`05_repetition_profile/`。原始 `01_constructed` 未修改。
+
+Turn 级 BGE-M3 语义向量：
+
+```text
+/home/gyr/lusychat-training/data-juicer-dialogue-v2.2-20260816/02_data_juicer/02_semantic_audit_v1
+```
+
+输入为 `01_independent_v1` exact survivors，共 1,254,267 条对话、18,958,570 个有效 turn pair。`01_turn_view/` 保存稳定 turn 元数据与原文，`assistant_embeddings/` 和 `user_embeddings/` 保存按 bucket 对齐的 1,024 维 FP16 归一化向量，`07_dashboard/` 保存实测吞吐、ETA 和运行状态。该版本只构建向量，不按 cosine 自动删除样本。后台服务为 `lusy-data-juicer-semantic-v1.service`。
+
 ## 固定 RP benchmark
 
 | 内容 | 远端路径 |

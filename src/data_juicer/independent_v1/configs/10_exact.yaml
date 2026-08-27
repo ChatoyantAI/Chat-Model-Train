@@ -1,0 +1,29 @@
+project_name: lusy-rp-v2_2-independent-v1-exact
+dataset_path: 01_derived_profile/parquet
+export_path: 02_exact_dedup/retained.parquet
+export_type: parquet
+work_dir: 02_exact_dedup/work
+
+executor_type: default
+auto_op_parallelism: false
+np: 96
+skip_op_error: false
+text_keys: full_training_sha256
+open_tracer: true
+trace_num: 200
+op_list_to_trace:
+  - document_deduplicator
+trace_keys:
+  - conversation_id
+  - dialogue_sample_id
+  - character_id
+  - conversation_bucket
+  - turn_count
+  - output_language
+  - full_training_sha256
+
+process:
+  - document_deduplicator:
+      text_key: full_training_sha256
+      lowercase: false
+      ignore_non_character: false

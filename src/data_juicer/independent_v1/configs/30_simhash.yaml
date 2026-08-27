@@ -1,0 +1,35 @@
+project_name: lusy-rp-v2_2-independent-v1-simhash
+dataset_path: 02_exact_dedup/retained.parquet
+export_path: 04_simhash_branch/retained.parquet
+export_type: parquet
+work_dir: 04_simhash_branch/work
+
+executor_type: default
+auto_op_parallelism: false
+np: 96
+skip_op_error: false
+text_keys: dialogue_body_text
+open_tracer: true
+trace_num: 200
+op_list_to_trace:
+  - document_simhash_deduplicator
+trace_keys:
+  - conversation_id
+  - dialogue_sample_id
+  - character_id
+  - conversation_bucket
+  - turn_count
+  - output_language
+  - dialogue_body_text
+
+process:
+  - text_length_filter:
+      text_key: dialogue_body_text
+      min_len: 32
+  - document_simhash_deduplicator:
+      text_key: dialogue_body_text
+      tokenization: character
+      window_size: 6
+      lowercase: true
+      num_blocks: 6
+      hamming_distance: 4

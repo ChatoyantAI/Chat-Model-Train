@@ -1,0 +1,24 @@
+project_name: lusy-rp-v2_2-independent-v1-repetition
+dataset_path: 02_exact_dedup/retained.parquet
+export_path: 05_repetition_profile/scored.parquet
+export_type: parquet
+work_dir: 05_repetition_profile/work
+
+executor_type: default
+auto_op_parallelism: false
+np: 96
+skip_op_error: false
+text_keys: assistant_body_text
+
+process:
+  - word_repetition_filter:
+      text_key: assistant_body_text
+      tokenization: false
+      rep_len: 10
+      min_ratio: 0.0
+      max_ratio: 1.0
+  - character_repetition_filter:
+      text_key: assistant_body_text
+      rep_len: 10
+      min_ratio: 0.0
+      max_ratio: 1.0

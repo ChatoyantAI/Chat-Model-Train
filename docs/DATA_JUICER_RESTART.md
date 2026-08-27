@@ -47,9 +47,9 @@ v2.2 没有按模型来源硬筛。inactive conversation、deleted user、fork �
 ## v2.2 还没有做什么
 
 1. PII、内容级未成年人风险和 provider/system 泄漏清理；
-2. 全 dialogue exact/MinHash 去重；
+2. 对 exact/MinHash/SimHash 初筛结果做人工阈值校准和质量感知代表选择；
 3. fork/shared-prefix 归并；
-4. assistant 模板重复和单对话语义循环检测；
+4. 基于已启动的 assistant/user turn embedding，完成单对话语义循环与跨对话模板候选判定；
 5. 逐 turn RP 质量与整段连续性评估；
 6. 点赞、点踩、regen、edit 的曝光校准；
 7. language、NSFW、角色类型、长度和实体配比；
@@ -130,7 +130,7 @@ session coherence 高于下限
 
 ## 代码入口
 
-`src/data_juicer/construction/` 保存 v2.2 构造相关代码；未来 Data-Juicer operator 应新增在版本化目录中，不能覆盖 v2.2 的冻结实现。
+`src/data_juicer/construction/` 保存 v2.2 构造相关代码；`src/data_juicer/independent_v1/` 保存已完成的第一轮全量 CPU 初筛。该版本把每条对话视为独立样本，不使用 fork 元数据改变初筛范围；exact 后的 MinHash、SimHash 是独立分支，复读算子只打分。`src/data_juicer/semantic_audit_v1/` 保存 18,958,570 个 turn pair 的 BGE-M3 assistant/user embedding 管线、断点续跑契约与可视化页面。后续版本不能覆盖 v2.2 构造或这些正式产物。
 
 远端候选母集：
 

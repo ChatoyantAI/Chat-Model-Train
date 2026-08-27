@@ -1,0 +1,36 @@
+project_name: lusy-rp-v2_2-independent-v1-minhash
+dataset_path: 02_exact_dedup/retained.parquet
+export_path: 03_minhash_branch/retained.parquet
+export_type: parquet
+work_dir: 03_minhash_branch/work
+
+executor_type: default
+auto_op_parallelism: false
+np: 96
+skip_op_error: false
+text_keys: dialogue_body_text
+open_tracer: true
+trace_num: 200
+op_list_to_trace:
+  - document_minhash_deduplicator
+trace_keys:
+  - conversation_id
+  - dialogue_sample_id
+  - character_id
+  - conversation_bucket
+  - turn_count
+  - output_language
+  - dialogue_body_text
+
+process:
+  - text_length_filter:
+      text_key: dialogue_body_text
+      min_len: 32
+  - document_minhash_deduplicator:
+      text_key: dialogue_body_text
+      tokenization: sentencepiece
+      tokenizer_model: 00_input_manifest/models/xlm-roberta-base-sentencepiece.bpe.model
+      window_size: 5
+      lowercase: true
+      num_permutations: 256
+      jaccard_threshold: 0.85
