@@ -1,0 +1,13 @@
+comparison_id,user_id,campaign_id,selected_at,winner_model,loser_model
+demo-001,user-001,example-campaign,2026-08-27T00:00:01Z,model-a,model-b
+demo-002,user-002,example-campaign,2026-08-27T00:00:02Z,model-a,model-b
+demo-003,user-003,example-campaign,2026-08-27T00:00:03Z,model-a,model-b
+demo-004,user-004,example-campaign,2026-08-27T00:00:04Z,model-b,model-a
+demo-005,user-005,example-campaign,2026-08-27T00:00:05Z,model-a,model-c
+demo-006,user-006,example-campaign,2026-08-27T00:00:06Z,model-a,model-c
+demo-007,user-007,example-campaign,2026-08-27T00:00:07Z,model-a,model-c
+demo-008,user-008,example-campaign,2026-08-27T00:00:08Z,model-c,model-a
+demo-009,user-009,example-campaign,2026-08-27T00:00:09Z,model-b,model-c
+demo-010,user-010,example-campaign,2026-08-27T00:00:10Z,model-b,model-c
+demo-011,user-011,example-campaign,2026-08-27T00:00:11Z,model-b,model-c
+demo-012,user-012,example-campaign,2026-08-27T00:00:12Z,model-c,model-b

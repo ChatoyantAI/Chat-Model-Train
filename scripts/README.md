@@ -9,3 +9,7 @@
 - 不硬编码密钥、本机路径或生产资源；
 - 在模块 README 中有对应运行示例；
 - 尽量调用正式模块接口，而不是复制实现。
+
+## 已有入口
+
+- `compute_elo_ranking.py`：调用 `src/evaluation/elo_ranking`，从标准胜负票 CSV 生成批量 Bradley–Terry 排名。
