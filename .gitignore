@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments and local configuration
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Build and package output
+build/
+dist/
+*.egg-info/
+
+# Training/evaluation runtime output
+/artifacts/
+/checkpoints/
+/outputs/
+/runs/
+/wandb/
+/mlruns/
+
+# Large or generated datasets. Keep schemas, manifests and tiny samples in Git.
+/data/raw/
+/data/interim/
+/data/processed/
+/data/external/
+*.parquet
+*.arrow
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+
+# Secrets and credentials
+*.pem
+*.key
+credentials*.json
+secrets*.json
