@@ -91,7 +91,7 @@ evaluation_id,pair_group_id,model_id,model_name,human_selected,source_completed_
 - 页面依次展示 System、Greeting、User/Assistant 历史和本条待评 Assistant 回复；
 - 内置 Gate、5 个维度、25 个原子项以及每项的 0–3 分真实回复示例；
 - 原子评分取值为 `0 / 1 / 2 / 3 / N/A`；
-- 0、1、3 分提交时必须填写直接证据；
+- 证据和原因暂时均为可选项；
 - 可保存草稿、修改已提交记录、前后翻页或按序号跳转；
 - 每分钟自动保存一次未保存草稿。
 

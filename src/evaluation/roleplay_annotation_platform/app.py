@@ -284,8 +284,6 @@ def normalize_scores(raw: Any, submitting: bool) -> dict[str, dict[str, Any]]:
         evidence = str(value.get("evidence", "")).strip()
         if len(evidence) > 4000:
             raise HTTPException(status_code=400, detail=f"{item_id} 证据过长")
-        if submitting and normalized_score in {0, 1, 3} and not evidence:
-            raise HTTPException(status_code=400, detail=f"{item_id} 的该分数需要填写证据")
         normalized[item_id] = {"value": normalized_score, "evidence": evidence}
     return normalized
 

@@ -205,7 +205,7 @@ class PlatformApiTests(unittest.TestCase):
         self.assertEqual("eval_one", record["evaluation_id"])
         self.assertEqual("submitted", record["status"])
 
-    def test_score_three_requires_evidence(self) -> None:
+    def test_score_three_allows_empty_evidence(self) -> None:
         scores = self.score_payload()
         scores["H1"] = {"value": 3, "evidence": ""}
         client = self.client()
@@ -223,8 +223,8 @@ class PlatformApiTests(unittest.TestCase):
                 "overall_notes": "",
             },
         )
-        self.assertEqual(400, status)
-        self.assertIn("H1", response["detail"])
+        self.assertEqual(200, status)
+        self.assertEqual("submitted", response["status"])
 
 
 if __name__ == "__main__":

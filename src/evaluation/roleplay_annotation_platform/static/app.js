@@ -165,7 +165,7 @@ function renderRubric() {
       const evidence = document.createElement("textarea");
       evidence.className = "evidence";
       evidence.dataset.evidenceFor = item.id;
-      evidence.placeholder = "证据 / 原因（0、1、3 分必填）";
+      evidence.placeholder = "证据 / 原因（可选）";
 
       const examples = document.createElement("details");
       examples.className = "examples";
@@ -228,11 +228,8 @@ function updateAnchor(itemId) {
   const anchor = document.querySelector(`[data-anchor-for="${itemId}"]`);
   const evidence = document.querySelector(`[data-evidence-for="${itemId}"]`);
   anchor.textContent = score ? `${score}：${item.anchors[score]}` : "选择分数后显示对应判定标准";
-  const evidenceRequired = ["0", "1", "3"].includes(score);
-  evidence.placeholder = evidenceRequired
-    ? "请引用待评回复中的直接证据（必填）"
-    : "证据 / 原因（可选）";
-  evidence.classList.toggle("required-empty", evidenceRequired && !evidence.value.trim());
+  evidence.placeholder = "证据 / 原因（可选）";
+  evidence.classList.remove("required-empty");
 }
 
 function updateScoreCounter() {
@@ -371,19 +368,14 @@ function collectScores() {
 
 function validateSubmission(scores) {
   const missing = [];
-  const missingEvidence = [];
   for (const dimension of state.rubric.dimensions) {
     for (const item of dimension.items) {
       if (!scores[item.id]) {
         missing.push(item.id);
-      } else if ([0, 1, 3].includes(scores[item.id].value) && !scores[item.id].evidence) {
-        missingEvidence.push(item.id);
-        document.querySelector(`[data-evidence-for="${item.id}"]`).classList.add("required-empty");
       }
     }
   }
   if (missing.length) throw new Error(`还有 ${missing.length} 项未评分：${missing.join("、")}`);
-  if (missingEvidence.length) throw new Error(`这些项目需要填写证据：${missingEvidence.join("、")}`);
 }
 
 async function save(status) {
