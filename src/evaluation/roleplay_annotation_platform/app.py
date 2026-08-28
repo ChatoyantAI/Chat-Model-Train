@@ -33,12 +33,6 @@ LABELS_CSV = Path(
 )
 COOKIE_NAME = "roleplay_annotation_session"
 USERNAME_RE = re.compile(r"^[\w\-]{1,40}$", re.UNICODE)
-BOOLEAN_GATES = {"G-D1", "G-D2", "G-D3", "G-P1", "G-P2", "G-P3"}
-ENUM_GATES = {
-    "G-S1": {"yes", "no", "unclear"},
-    "G-S2": {"pass", "fail", "N/A"},
-    "G-S3": {"yes", "no", "N/A"},
-}
 APP_STATE: dict[str, Any] = {}
 
 
@@ -51,9 +45,41 @@ def load_rubric() -> dict[str, Any]:
         rubric = json.load(handle)
     items = [item for dimension in rubric["dimensions"] for item in dimension["items"]]
     ids = [item["id"] for item in items]
-    if len(ids) != 25 or len(set(ids)) != 25:
-        raise RuntimeError("rubric must contain 25 unique atomic item IDs")
+    if not ids or len(ids) != len(set(ids)):
+        raise RuntimeError("rubric must contain unique atomic item IDs")
+    valid_scores: dict[str, list[int | str]] = {}
+    for item in items:
+        scale = item.get("scale")
+        if not isinstance(scale, list) or not scale:
+            raise RuntimeError(f"rubric item {item['id']} has no score scale")
+        if any(score not in {"0", "1", "2", "3"} for score in scale):
+            raise RuntimeError(f"rubric item {item['id']} has an invalid score scale")
+        if set(item.get("anchors", {})) != {*scale, "N/A"}:
+            raise RuntimeError(f"rubric item {item['id']} has incomplete score anchors")
+        valid_scores[item["id"]] = [*[int(score) for score in scale], "N/A"]
+
+    gate_ids: list[str] = []
+    boolean_gate_ids: list[str] = []
+    enum_gate_values: dict[str, list[str]] = {}
+    for group in rubric.get("gates", []):
+        for gate in group.get("items", []):
+            gate_id = str(gate["id"])
+            gate_ids.append(gate_id)
+            if gate.get("type") == "boolean":
+                boolean_gate_ids.append(gate_id)
+            elif gate.get("type") == "enum":
+                enum_gate_values[gate_id] = [
+                    str(option["value"]) for option in gate.get("options", [])
+                ]
+            else:
+                raise RuntimeError(f"rubric gate {gate_id} has an invalid type")
+    if not gate_ids or len(gate_ids) != len(set(gate_ids)):
+        raise RuntimeError("rubric must contain unique Gate IDs")
     rubric["item_ids"] = ids
+    rubric["valid_scores"] = valid_scores
+    rubric["gate_ids"] = gate_ids
+    rubric["boolean_gate_ids"] = boolean_gate_ids
+    rubric["enum_gate_values"] = enum_gate_values
     return rubric
 
 
@@ -93,6 +119,7 @@ def initialize_results() -> None:
                 username TEXT NOT NULL REFERENCES users(username),
                 seq INTEGER NOT NULL,
                 evaluation_id TEXT NOT NULL,
+                rubric_version TEXT NOT NULL,
                 status TEXT NOT NULL CHECK(status IN ('draft', 'submitted')),
                 gates_json TEXT NOT NULL,
                 scores_json TEXT NOT NULL,
@@ -105,6 +132,19 @@ def initialize_results() -> None:
             CREATE INDEX IF NOT EXISTS idx_annotations_user_status
                 ON annotations(username, status, seq);
             """
+        )
+        columns = {
+            str(row["name"])
+            for row in connection.execute("PRAGMA table_info(annotations)").fetchall()
+        }
+        if "rubric_version" not in columns:
+            connection.execute(
+                "ALTER TABLE annotations ADD COLUMN rubric_version TEXT NOT NULL "
+                "DEFAULT 'legacy'"
+            )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_annotations_user_rubric_status "
+            "ON annotations(username, rubric_version, status, seq)"
         )
 
 
@@ -303,8 +343,8 @@ def progress_for(username: str) -> dict[str, int]:
         row = connection.execute(
             "SELECT COUNT(*) AS saved, "
             "SUM(CASE WHEN status = 'submitted' THEN 1 ELSE 0 END) AS submitted "
-            "FROM annotations WHERE username = ?",
-            (username,),
+            "FROM annotations WHERE username = ? AND rubric_version = ?",
+            (username, APP_STATE["rubric"]["version"]),
         ).fetchone()
     return {
         "saved": int(row["saved"] or 0),
@@ -317,8 +357,9 @@ def next_unsubmitted(username: str, after: int = 0) -> int | None:
     total = int(APP_STATE["total"])
     with result_connection() as connection:
         rows = connection.execute(
-            "SELECT seq FROM annotations WHERE username = ? AND status = 'submitted'",
-            (username,),
+            "SELECT seq FROM annotations "
+            "WHERE username = ? AND rubric_version = ? AND status = 'submitted'",
+            (username, APP_STATE["rubric"]["version"]),
         ).fetchall()
     submitted = {int(row["seq"]) for row in rows}
     if len(submitted) >= total:
@@ -336,8 +377,8 @@ def existing_annotation(username: str, seq: int) -> dict[str, Any] | None:
     with result_connection() as connection:
         row = connection.execute(
             "SELECT status, gates_json, scores_json, gate_notes, overall_notes, updated_at "
-            "FROM annotations WHERE username = ? AND seq = ?",
-            (username, seq),
+            "FROM annotations WHERE username = ? AND seq = ? AND rubric_version = ?",
+            (username, seq, APP_STATE["rubric"]["version"]),
         ).fetchone()
     if row is None:
         return None
@@ -367,12 +408,11 @@ def normalize_scores(raw: Any, submitting: bool) -> dict[str, dict[str, Any]]:
         if not isinstance(value, dict):
             raise HTTPException(status_code=400, detail=f"{item_id} 格式错误")
         score = value.get("value")
-        if score == "N/A":
-            normalized_score: int | str = "N/A"
-        elif isinstance(score, int) and not isinstance(score, bool) and 0 <= score <= 3:
-            normalized_score = score
-        else:
+        if score not in APP_STATE["rubric"]["valid_scores"][item_id] or isinstance(
+            score, bool
+        ):
             raise HTTPException(status_code=400, detail=f"{item_id} 分数无效")
+        normalized_score: int | str = score
         evidence = str(value.get("evidence", "")).strip()
         if len(evidence) > 4000:
             raise HTTPException(status_code=400, detail=f"{item_id} 证据过长")
@@ -383,7 +423,12 @@ def normalize_scores(raw: Any, submitting: bool) -> dict[str, dict[str, Any]]:
 def normalize_gates(raw: Any, submitting: bool) -> dict[str, Any]:
     if not isinstance(raw, dict):
         raise HTTPException(status_code=400, detail="gates 必须是对象")
-    expected = BOOLEAN_GATES | set(ENUM_GATES)
+    expected = set(APP_STATE["rubric"]["gate_ids"])
+    boolean_gates = set(APP_STATE["rubric"]["boolean_gate_ids"])
+    enum_gates = {
+        gate_id: set(values)
+        for gate_id, values in APP_STATE["rubric"]["enum_gate_values"].items()
+    }
     unknown = set(raw) - expected
     if unknown:
         raise HTTPException(status_code=400, detail=f"未知 Gate：{sorted(unknown)}")
@@ -391,11 +436,11 @@ def normalize_gates(raw: Any, submitting: bool) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="请完成全部 Gate 判断")
     normalized: dict[str, Any] = {}
     for gate_id, value in raw.items():
-        if gate_id in BOOLEAN_GATES:
+        if gate_id in boolean_gates:
             if not isinstance(value, bool):
                 raise HTTPException(status_code=400, detail=f"{gate_id} 必须为是或否")
             normalized[gate_id] = value
-        elif value not in ENUM_GATES[gate_id]:
+        elif value not in enum_gates[gate_id]:
             raise HTTPException(status_code=400, detail=f"{gate_id} 取值无效")
         else:
             normalized[gate_id] = value
@@ -633,11 +678,12 @@ async def save_annotation(request: Request) -> dict[str, Any]:
         connection.execute(
             """
             INSERT INTO annotations(
-                username, seq, evaluation_id, status, gates_json, scores_json,
+                username, seq, evaluation_id, rubric_version, status, gates_json, scores_json,
                 gate_notes, overall_notes, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(username, seq) DO UPDATE SET
                 evaluation_id = excluded.evaluation_id,
+                rubric_version = excluded.rubric_version,
                 status = excluded.status,
                 gates_json = excluded.gates_json,
                 scores_json = excluded.scores_json,
@@ -649,6 +695,7 @@ async def save_annotation(request: Request) -> dict[str, Any]:
                 username,
                 seq,
                 evaluation_id,
+                APP_STATE["rubric"]["version"],
                 status,
                 json.dumps(gates, ensure_ascii=False, separators=(",", ":")),
                 json.dumps(scores, ensure_ascii=False, separators=(",", ":")),

@@ -89,12 +89,16 @@ evaluation_id,pair_group_id,model_id,model_name,human_selected,source_completed_
 - 每个用户名分别保存进度、草稿和提交结果；
 - 页面与 API 不返回 `evaluation_id`、模型身份、配对关系或真人选择；
 - 页面依次展示 System、Greeting、User/Assistant 历史和本条待评 Assistant 回复；
-- 内置 Gate、5 个维度、25 个原子项以及每项的 0–3 分真实回复示例；
-- 每个原子项在选择前同时显示 `0 / 1 / 2 / 3 / N/A` 的完整判定标准，选择后只高亮所选档位；
-- 原子评分取值为 `0 / 1 / 2 / 3 / N/A`；
+- 评分标准完整迁移自 `ROLEPLAY_EVALUATION_DIMENSIONS_V0_2.md`（SHA-256：`7f415a513dced7d5e5d0cc14ece33d700781ea3dd90b9ac454cdfadfee3ffd58`）；
+- 内置 11 个 Gate、5 个维度、22 个原子项、25 组案例和 79 条分档角色扮演回复；
+- 页面逐项展示原文中的判定步骤、不计入项、N/A 条件、案例背景、回复和评分说明，并提供整份 V0.2 原文查看入口；
+- 每个原子项在选择前同时显示它自己的全部有效档位与 `N/A`，选择后只高亮所选档位；
+- 原子项分别使用 `0 / 2`、`0 / 1 / 2` 或 `0 / 1 / 2 / 3` 尺度；没有出现在该项尺度里的分数既不显示，后端也不接受；
 - 证据和原因暂时均为可选项；
 - 可保存草稿、修改已提交记录、前后翻页或按序号跳转；
 - 每分钟自动保存一次未保存草稿。
+
+V0.2 上线后，旧评分结构保存的记录不会计入 V0.2 提交进度，也不会自动套入新表；原记录仍保留在 SQLite 中，标注员重新评分并保存该样本时才会被 V0.2 结果替换。
 
 ## Battle 投票回放
 
@@ -119,7 +123,7 @@ SQLite 是恢复进度的主索引；每次保存还会生成一份按用户名�
 ```json
 {
   "schema_version": 1,
-  "rubric_version": "roleplay-rubric-v0.1-4point",
+  "rubric_version": "roleplay-rubric-v0.2",
   "username": "annotator_01",
   "sequence_number": 1,
   "evaluation_id": "eval_...",
@@ -133,7 +137,9 @@ SQLite 是恢复进度的主索引；每次保存还会生成一份按用户名�
     "G-S3": "no",
     "G-P1": false,
     "G-P2": false,
-    "G-P3": false
+    "G-P3": false,
+    "G-P4": false,
+    "G-P5": false
   },
   "scores": {
     "H1": {"value": 2, "evidence": "..."},

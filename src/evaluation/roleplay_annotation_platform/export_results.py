@@ -10,7 +10,7 @@ def export_results(database: Path, output: Path, username: str | None = None) ->
     connection = sqlite3.connect(database)
     connection.row_factory = sqlite3.Row
     query = (
-        "SELECT username, seq, evaluation_id, status, gates_json, scores_json, "
+        "SELECT username, seq, evaluation_id, rubric_version, status, gates_json, scores_json, "
         "gate_notes, overall_notes, created_at, updated_at FROM annotations"
     )
     parameters: tuple[str, ...] = ()

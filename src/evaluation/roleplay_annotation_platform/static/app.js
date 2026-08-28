@@ -78,9 +78,75 @@ function createRadio(name, value, label, checked = false) {
   return wrapper;
 }
 
+function appendText(parent, className, text, tag = "p") {
+  if (!text) return null;
+  const node = document.createElement(tag);
+  node.className = className;
+  node.textContent = text;
+  parent.append(node);
+  return node;
+}
+
+function renderReferenceTable(parent, headers, rows) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "reference-table-wrap";
+  const table = document.createElement("table");
+  table.className = "reference-table";
+  const head = document.createElement("thead");
+  const headRow = document.createElement("tr");
+  headers.forEach((header) => appendText(headRow, "", header, "th"));
+  head.append(headRow);
+  const body = document.createElement("tbody");
+  rows.forEach((row) => {
+    const tr = document.createElement("tr");
+    headers.forEach((header) => appendText(tr, "", row[header], "td"));
+    body.append(tr);
+  });
+  table.append(head, body);
+  wrapper.append(table);
+  parent.append(wrapper);
+}
+
+function renderGuide() {
+  const root = el("rubric-guide");
+  root.replaceChildren();
+  const heading = document.createElement("h3");
+  heading.textContent = state.rubric.title;
+  root.append(heading);
+  appendText(root, "guide-intro", state.rubric.intro);
+
+  const scoreHeading = document.createElement("h4");
+  scoreHeading.textContent = "原子项统一评分";
+  root.append(scoreHeading);
+  renderReferenceTable(root, state.rubric.score_headers, state.rubric.score_scale_rows);
+  renderReferenceTable(root, state.rubric.scale_usage_headers, state.rubric.scale_usage);
+
+  const ruleHeading = document.createElement("h4");
+  ruleHeading.textContent = "规则";
+  root.append(ruleHeading);
+  const rules = document.createElement("ol");
+  rules.className = "guide-rules";
+  state.rubric.rules.forEach((rule) => appendText(rules, "", rule, "li"));
+  root.append(rules);
+  appendText(root, "case-note", state.rubric.case_note);
+
+  const source = document.createElement("details");
+  source.className = "complete-source";
+  const summary = document.createElement("summary");
+  summary.textContent = `查看 ${state.rubric.source_filename} 完整原文（无删节）`;
+  const hash = document.createElement("div");
+  hash.className = "source-hash";
+  hash.textContent = `SHA-256：${state.rubric.source_sha256}`;
+  const pre = document.createElement("pre");
+  pre.textContent = state.rubric.source_markdown;
+  source.append(summary, hash, pre);
+  root.append(source);
+}
+
 function renderGates() {
   const root = el("gate-groups");
   root.replaceChildren();
+  appendText(root, "gate-intro", state.rubric.gate_intro);
   for (const group of state.rubric.gates) {
     const section = document.createElement("section");
     section.className = "gate-group";
@@ -90,30 +156,40 @@ function renderGates() {
     for (const item of group.items) {
       const row = document.createElement("div");
       row.className = "gate-item";
+      const copy = document.createElement("div");
       const question = document.createElement("div");
+      question.className = "gate-question";
       question.textContent = `${item.id} · ${item.question}`;
+      copy.append(question);
+      if (item.yes_result || item.no_result) {
+        appendText(copy, "gate-condition", `是：${item.yes_result}；否：${item.no_result}`);
+      } else if (item.yes_condition) {
+        appendText(copy, "gate-condition", `记“是”的条件：${item.yes_condition}`);
+      } else if (item.result_text) {
+        appendText(copy, "gate-condition", `结果：${item.result_text}`);
+      }
       const options = document.createElement("div");
       options.className = "gate-options";
       const choices = item.type === "boolean"
         ? [{ value: "false", label: "否" }, { value: "true", label: "是" }]
         : item.options;
-      choices.forEach((choice, index) => {
-        let defaultChoice = index === 0;
-        if (item.id === "G-S1") defaultChoice = choice.value === "no";
-        if (item.id === "G-S2") defaultChoice = choice.value === "N/A";
-        if (item.id === "G-S3") defaultChoice = choice.value === "no";
+      choices.forEach((choice) => {
+        const defaultValue = item.type === "boolean" ? String(item.default) : item.default;
+        const defaultChoice = choice.value === defaultValue;
         const radio = createRadio(`gate-${item.id}`, choice.value, choice.label, defaultChoice);
         radio.querySelector("input").dataset.gateId = item.id;
         options.append(radio);
       });
-      row.append(question, options);
+      row.append(copy, options);
       section.append(row);
     }
     root.append(section);
   }
+  appendText(root, "gate-case", state.rubric.gate_case);
 }
 
 function renderRubric() {
+  renderGuide();
   renderGates();
   const root = el("rubric-dimensions");
   root.replaceChildren();
@@ -141,12 +217,36 @@ function renderRubric() {
       itemId.textContent = item.id;
       const itemName = document.createElement("span");
       itemName.className = "item-name";
-      itemName.textContent = item.name;
-      heading.append(itemId, itemName);
+      itemName.textContent = `${item.name}${item.starred ? " ★" : ""}`;
+      const scale = document.createElement("span");
+      scale.className = "scale-badge";
+      scale.textContent = `尺度 ${item.scale_label}`;
+      heading.append(itemId, itemName, scale);
 
-      const question = document.createElement("p");
-      question.className = "item-question";
-      question.textContent = item.question;
+      const guidance = document.createElement("section");
+      guidance.className = "item-guidance";
+      appendText(guidance, "item-intro", item.intro);
+      const guidanceTitle = document.createElement("h4");
+      guidanceTitle.textContent = "判定步骤";
+      guidance.append(guidanceTitle);
+      const steps = document.createElement("ol");
+      item.decision_steps.forEach((step) => appendText(steps, "", step, "li"));
+      guidance.append(steps);
+      appendText(guidance, "decision-notes", item.decision_notes);
+      if (item.not_counted) {
+        const notCounted = document.createElement("p");
+        notCounted.className = "labelled-guidance";
+        const label = document.createElement("strong");
+        label.textContent = "不计入：";
+        notCounted.append(label, document.createTextNode(item.not_counted));
+        guidance.append(notCounted);
+      }
+      const na = document.createElement("p");
+      na.className = "labelled-guidance";
+      const naLabel = document.createElement("strong");
+      naLabel.textContent = "N/A：";
+      na.append(naLabel, document.createTextNode(item.na_condition));
+      guidance.append(na);
 
       const standards = document.createElement("fieldset");
       standards.className = "score-standards";
@@ -154,7 +254,7 @@ function renderRubric() {
       const standardsLegend = document.createElement("legend");
       standardsLegend.textContent = "评分档位（先读标准，再选择一项）";
       standards.append(standardsLegend);
-      ["0", "1", "2", "3", "N/A"].forEach((score) => {
+      [...item.scale, "N/A"].forEach((score) => {
         const row = document.createElement("label");
         row.className = "score-standard";
         row.dataset.score = score;
@@ -181,25 +281,41 @@ function renderRubric() {
       const examples = document.createElement("details");
       examples.className = "examples";
       const exampleSummary = document.createElement("summary");
-      exampleSummary.textContent = "查看 0–3 分角色扮演回复示例";
-      const background = document.createElement("p");
-      background.className = "example-background";
-      background.textContent = `背景：${item.example.background}`;
-      const grid = document.createElement("div");
-      grid.className = "example-grid";
-      ["0", "1", "2", "3"].forEach((score) => {
-        const cell = document.createElement("div");
-        cell.className = "example-cell";
-        const scoreLabel = document.createElement("span");
-        scoreLabel.className = "example-score";
-        scoreLabel.textContent = `${score} 分回复`;
-        const text = document.createElement("span");
-        text.textContent = item.example[score].replaceAll("<br>", "\n");
-        cell.append(scoreLabel, text);
-        grid.append(cell);
+      const exampleCount = item.cases.reduce((count, exampleCase) => count + exampleCase.examples.length, 0);
+      exampleSummary.textContent = `查看完整案例（${item.cases.length} 组，${exampleCount} 条评分回复）`;
+      examples.append(exampleSummary);
+      item.cases.forEach((exampleCase) => {
+        const caseBlock = document.createElement("section");
+        caseBlock.className = "example-case";
+        const caseTitle = document.createElement("h5");
+        caseTitle.textContent = exampleCase.label;
+        caseBlock.append(caseTitle);
+        appendText(
+          caseBlock,
+          "example-background",
+          `${exampleCase.background_label}：${exampleCase.background}`,
+        );
+        const grid = document.createElement("div");
+        grid.className = "example-grid";
+        exampleCase.examples.forEach((example) => {
+          const cell = document.createElement("article");
+          cell.className = `example-cell example-score-${example.score}`;
+          const scoreLabel = document.createElement("div");
+          scoreLabel.className = "example-score";
+          scoreLabel.textContent = example.label;
+          const reply = document.createElement("pre");
+          reply.className = "example-reply";
+          reply.textContent = example.reply;
+          const explanation = document.createElement("p");
+          explanation.className = "example-explanation";
+          explanation.textContent = example.explanation;
+          cell.append(scoreLabel, reply, explanation);
+          grid.append(cell);
+        });
+        caseBlock.append(grid);
+        examples.append(caseBlock);
       });
-      examples.append(exampleSummary, background, grid);
-      card.append(heading, question, standards, evidence, examples);
+      card.append(heading, guidance, standards, evidence, examples);
       details.append(card);
     }
     root.append(details);
@@ -251,17 +367,12 @@ function resetForm() {
     textarea.value = "";
     textarea.classList.remove("required-empty");
   });
-  const gateDefaults = {
-    "G-D1": "false",
-    "G-D2": "false",
-    "G-D3": "false",
-    "G-S1": "no",
-    "G-S2": "N/A",
-    "G-S3": "no",
-    "G-P1": "false",
-    "G-P2": "false",
-    "G-P3": "false",
-  };
+  const gateDefaults = {};
+  state.rubric.gates.forEach((group) => {
+    group.items.forEach((item) => {
+      gateDefaults[item.id] = item.type === "boolean" ? String(item.default) : item.default;
+    });
+  });
   document.querySelectorAll('input[name^="gate-"]').forEach((input) => {
     input.checked = input.value === gateDefaults[input.name.slice(5)];
   });
