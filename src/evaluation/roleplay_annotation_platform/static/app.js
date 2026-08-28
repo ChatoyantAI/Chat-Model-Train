@@ -148,19 +148,30 @@ function renderRubric() {
       question.className = "item-question";
       question.textContent = item.question;
 
-      const options = document.createElement("div");
-      options.className = "score-options";
+      const standards = document.createElement("fieldset");
+      standards.className = "score-standards";
+      standards.dataset.standardsFor = item.id;
+      const standardsLegend = document.createElement("legend");
+      standardsLegend.textContent = "评分档位（先读标准，再选择一项）";
+      standards.append(standardsLegend);
       ["0", "1", "2", "3", "N/A"].forEach((score) => {
-        const radio = createRadio(`score-${item.id}`, score, score);
-        const input = radio.querySelector("input");
+        const row = document.createElement("label");
+        row.className = "score-standard";
+        row.dataset.score = score;
+        const input = document.createElement("input");
+        input.type = "radio";
+        input.name = `score-${item.id}`;
+        input.value = score;
         input.dataset.itemId = item.id;
-        options.append(radio);
+        const scoreLabel = document.createElement("span");
+        scoreLabel.className = "score-standard-label";
+        scoreLabel.textContent = score;
+        const description = document.createElement("span");
+        description.className = "score-standard-description";
+        description.textContent = item.anchors[score];
+        row.append(input, scoreLabel, description);
+        standards.append(row);
       });
-
-      const anchor = document.createElement("div");
-      anchor.className = "anchor-text";
-      anchor.dataset.anchorFor = item.id;
-      anchor.textContent = "选择分数后显示对应判定标准";
 
       const evidence = document.createElement("textarea");
       evidence.className = "evidence";
@@ -188,7 +199,7 @@ function renderRubric() {
         grid.append(cell);
       });
       examples.append(exampleSummary, background, grid);
-      card.append(heading, question, options, anchor, evidence, examples);
+      card.append(heading, question, standards, evidence, examples);
       details.append(card);
     }
     root.append(details);
@@ -209,25 +220,18 @@ function renderRubric() {
   });
 }
 
-function itemById(itemId) {
-  for (const dimension of state.rubric.dimensions) {
-    const found = dimension.items.find((item) => item.id === itemId);
-    if (found) return found;
-  }
-  return null;
-}
-
 function selectedScore(itemId) {
   const selected = document.querySelector(`input[name="score-${itemId}"]:checked`);
   return selected ? selected.value : null;
 }
 
 function updateAnchor(itemId) {
-  const item = itemById(itemId);
   const score = selectedScore(itemId);
-  const anchor = document.querySelector(`[data-anchor-for="${itemId}"]`);
+  const standards = document.querySelector(`[data-standards-for="${itemId}"]`);
   const evidence = document.querySelector(`[data-evidence-for="${itemId}"]`);
-  anchor.textContent = score ? `${score}：${item.anchors[score]}` : "选择分数后显示对应判定标准";
+  standards.querySelectorAll(".score-standard").forEach((row) => {
+    row.classList.toggle("selected", row.dataset.score === score);
+  });
   evidence.placeholder = "证据 / 原因（可选）";
   evidence.classList.remove("required-empty");
 }
@@ -263,9 +267,7 @@ function resetForm() {
   });
   el("gate-notes").value = "";
   el("overall-notes").value = "";
-  document.querySelectorAll("[data-anchor-for]").forEach((anchor) => {
-    anchor.textContent = "选择分数后显示对应判定标准";
-  });
+  document.querySelectorAll(".score-standard.selected").forEach((row) => row.classList.remove("selected"));
   updateScoreCounter();
 }
 

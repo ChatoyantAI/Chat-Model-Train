@@ -90,6 +90,7 @@ evaluation_id,pair_group_id,model_id,model_name,human_selected,source_completed_
 - 页面与 API 不返回 `evaluation_id`、模型身份、配对关系或真人选择；
 - 页面依次展示 System、Greeting、User/Assistant 历史和本条待评 Assistant 回复；
 - 内置 Gate、5 个维度、25 个原子项以及每项的 0–3 分真实回复示例；
+- 每个原子项在选择前同时显示 `0 / 1 / 2 / 3 / N/A` 的完整判定标准，选择后只高亮所选档位；
 - 原子评分取值为 `0 / 1 / 2 / 3 / N/A`；
 - 证据和原因暂时均为可选项；
 - 可保存草稿、修改已提交记录、前后翻页或按序号跳转；

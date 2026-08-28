@@ -188,7 +188,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .gate-group { padding: 12px 14px; border-bottom: 1px solid var(--line); }
 .gate-group h4 { margin: 0 0 9px; }
 .gate-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 7px 0; }
-.gate-options, .score-options { display: flex; flex-wrap: wrap; gap: 5px; }
+.gate-options { display: flex; flex-wrap: wrap; gap: 5px; }
 
 .radio-chip input { position: absolute; opacity: 0; pointer-events: none; }
 .radio-chip span {
@@ -214,7 +214,38 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .item-id { color: var(--accent); font-weight: 900; }
 .item-name { font-weight: 850; }
 .item-question { margin: 5px 0 10px; }
-.anchor-text { min-height: 23px; margin: 8px 0; color: var(--muted); font-size: 13px; }
+.score-standards { display: grid; gap: 5px; margin: 8px 0 10px; padding: 0; border: 0; }
+.score-standards legend { margin-bottom: 6px; color: var(--muted); font-size: 12px; font-weight: 750; }
+.score-standard {
+  position: relative;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #faf9f6;
+  cursor: pointer;
+}
+.score-standard:hover { border-color: #a8b8af; background: #f5f8f6; }
+.score-standard.selected { border-color: var(--accent); background: #edf5f1; box-shadow: inset 3px 0 0 var(--accent); }
+.score-standard input { position: absolute; opacity: 0; pointer-events: none; }
+.score-standard-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 900;
+}
+.score-standard.selected .score-standard-label { border-color: var(--accent); background: var(--accent); color: #fff; }
+.score-standard input:focus-visible + .score-standard-label { outline: 3px solid rgba(49, 93, 76, .25); }
+.score-standard-description { color: #3f4843; font-size: 13px; line-height: 1.45; }
 .evidence {
   width: 100%;
   min-height: 58px;

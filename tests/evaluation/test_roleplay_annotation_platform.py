@@ -25,6 +25,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 RUBRIC_MARKDOWN = (
     REPO_ROOT / "docs" / "evaluation" / "ROLEPLAY_EVALUATION_DIMENSIONS_V0_1.md"
 )
+PLATFORM_JS = (
+    REPO_ROOT / "src" / "evaluation" / "roleplay_annotation_platform" / "static" / "app.js"
+)
 
 
 def sample_record(evaluation_id: str, candidate: str) -> dict:
@@ -56,6 +59,12 @@ class RubricAndDataBuildTests(unittest.TestCase):
         record["model_name"] = "secret-model"
         with self.assertRaisesRegex(ValueError, "blind-data violation"):
             _validate_record(record, 1)
+
+    def test_all_score_standards_are_visible_before_selection(self) -> None:
+        script = PLATFORM_JS.read_text(encoding="utf-8")
+        self.assertIn("description.textContent = item.anchors[score]", script)
+        self.assertIn("先读标准，再选择一项", script)
+        self.assertNotIn("选择分数后显示对应判定标准", script)
 
 
 class PlatformApiTests(unittest.TestCase):
