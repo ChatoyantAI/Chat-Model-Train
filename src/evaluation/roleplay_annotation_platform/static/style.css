@@ -320,3 +320,17 @@ button:disabled { cursor: not-allowed; opacity: .45; }
   .example-grid { grid-template-columns: 1fr; }
   .actions { flex-direction: column; }
 }
+
+@media (min-width: 1101px) {
+  .workspace {
+    height: calc(100vh - 128px);
+    align-items: stretch;
+    overflow: hidden;
+  }
+  .context-pane, .rubric-pane {
+    height: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .sticky-title { top: 0; }
+}
