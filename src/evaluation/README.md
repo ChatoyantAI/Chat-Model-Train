@@ -50,3 +50,4 @@ src/evaluation/
 ## 已有实现
 
 - [elo_ranking](elo_ranking/README.md)：将线上匿名二选一胜负票批量拟合为无位置项的 Bradley–Terry 分数、排名和置信区间。
+- [roleplay_judge_dataset](roleplay_judge_dataset/README.md)：按采集期生产逻辑从冻结 ELO 数据高保真重建候选上下文，并生成匿名单回复 Judge 数据。

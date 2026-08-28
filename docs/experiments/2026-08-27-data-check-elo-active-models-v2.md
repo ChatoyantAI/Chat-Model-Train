@@ -148,9 +148,12 @@ $$
 - 143条历史图片文本解析上下文；
 - 37,044条消息编辑、重新生成和版本切换事件。
 
-另生成13,275条上下文合并后的盲测记录，其中13,269条可直接进入测评。候选左右按 `comparison_id` 确定性打乱成 A/B，测评文件不包含模型身份和人工选择；映射及标签单独保存，避免 Judge 泄露。
+早期中间产物包含13,275条上下文合并记录，其中13,269条可测评。正式单回复 Judge 数据已进一步按采集期生产提交
+`f8ab72c314fafa843677a94269e29dbdfb94f344` 重建候选级 `input_messages`：13,269场有效比较拆成26,538条独立输入。每个候选分别应用自己的上下文窗口和 summary 裁剪规则，待评回复单独保存在 `output_message`，不会提前进入历史。
 
-合并后历史消息数量中位数为4，P95约225，最大7,898。后续实际 Judge 运行应按代码组装上下文，并明确记录上下文窗口和裁剪配置，以保证测评可复现。
+缺失的 `chat_mod`、用户性别、测试账号布尔值、prompt 实验分组和左右模型上下文窗口来自2026-08-28的生产只读当前快照，不是生成时历史快照。该补充文件有13,269条，不含邮箱、用户 ID 或凭证。本轮当前快照的 `chat_mod` 分布为50：137场、250：12,905场、650：233场；候选上下文窗口为8K、128K或160K；没有现存 `prompt_priority` 分组或测试账号命中。
+
+最终 Judge 文件使用随机不可反推的 `evaluation_id`，不包含比较编号、pair、模型身份、左右位置或真人选择。隔离标签和上下文审计单独保存；全量验证确认同场两个候选不会连续出现。
 
 ## 产物
 
@@ -162,6 +165,11 @@ $$
 - `elo_export_data_check_v2_20260827/votes.csv`：13,269张正式计分票；
 - `blind_evaluation_records.jsonl.gz`：盲化测评输入；
 - `blind_evaluation_labels.csv`：模型映射和人工标签；
+- `prompt_reconstruction_runtime.jsonl.gz`：13,269条脱敏当前运行参数快照；
+- `judge_inputs.jsonl.gz`：26,538条正式单回复 Judge 输入；
+- `evaluation_labels.csv`：26,538条隔离标签；
+- `evaluation_context_audit.jsonl.gz`：26,538条无正文重建审计；
+- `manifest.json`：正式单回复 Judge 产物数量、hash和已知限制；
 - `ranking/ranking.csv`：最终排名；
 - `ranking/pairwise.csv`：55组两两胜负；
 - `ranking/summary.json`：计算元数据和完整结果。
@@ -175,6 +183,10 @@ $$
 | 正式 votes | `2b1c3c2753d66e145512d08f6634136712fdcc18c67110126eaff9f5acd47a4f` |
 | 盲测 records | `d210b430824c2e02ca86c875357158fa662a98b39951838b122cb8b9be0becf8` |
 | 盲测 labels | `1405541854fb658bd48c0a3530e51a5316eaa6fc4c3d44b20fc3803298e4c699` |
+| 运行参数快照 | `ce0a0706daa73dc049f7f1c546ac1f223c87c68ee33b508c8400ca1ca759215f` |
+| 单回复 Judge 输入 | `558490bfa21a1fc073119e3dcfa2d37addfa79888cc32d7e11cc4adbcbaadfaf` |
+| 单回复隔离标签 | `3e490c4926bf0c30583dc6224b0168fdeaf2f4ec3958b4f3d330069ea7d06c32` |
+| 上下文审计 | `e168e3582875e8ecf48366796339a87789bd57edea1d99037228abaf1433aa49` |
 | ranking.csv | `bafafd9c5cf9c0afcb994e3866a5d81b588ff9e66e86ea207de9e711264bb4ee` |
 | pairwise.csv | `8ac111c538ea1cd48f0c7fb9f08f4dd5633263d9e136932e55309789f2547280` |
 

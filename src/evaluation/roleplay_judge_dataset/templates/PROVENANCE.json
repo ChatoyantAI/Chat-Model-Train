@@ -1,0 +1,18 @@
+{
+  "production_code_commit": "f8ab72c314fafa843677a94269e29dbdfb94f344",
+  "source_root": "backend/app/resources/prompt",
+  "runtime_git_dependency": false,
+  "files": {
+    "basic_chat_prompts.json": "5c4ab612a0b53ce3cafa3985a9d68124c488edb3",
+    "prompt_chat.txt": "4fa4d05ea84f2127b5d3c6e9426878942eefaf2a",
+    "prompt_scene.txt": "4782a4e3dbda9de7c774f4f7fdc9125a6a248766",
+    "prompt_long_text.txt": "0eeda4abae7883e61c90038dd45b3e73a50e55f7",
+    "prompt_chat_user_priority.txt": "4fa4d05ea84f2127b5d3c6e9426878942eefaf2a",
+    "prompt_scene_user_priority.txt": "4782a4e3dbda9de7c774f4f7fdc9125a6a248766",
+    "prompt_long_text_user_priority.txt": "1d9f92e184826d4655ff7cd05648c103426261db",
+    "prompt_collaborative.txt": "340658d679fcd4285eb7d2b51c61d4b72de2f0b2",
+    "prompt_green.txt": "d74661f428f1b8e1eea3ee71ddd80e883beb247f",
+    "prompt_green_collaborative.txt": "575765265fbbcf7cce8811ceb81e8eb89d71918f",
+    "prompt_restricted_topics.txt": "25fdc5b0c7dcb7fbf75b1b90e8d7558dca06fab1"
+  }
+}

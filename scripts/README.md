@@ -13,3 +13,5 @@
 ## 已有入口
 
 - `compute_elo_ranking.py`：调用 `src/evaluation/elo_ranking`，从标准胜负票 CSV 生成批量 Bradley–Terry 排名。
+- `build_production_context.py`：从冻结 ELO 数据单独重建一场 comparison 的一个候选上下文。
+- `build_roleplay_judge_dataset.py`：批量生成单回复 Judge 输入、隔离标签、上下文审计和 manifest。
