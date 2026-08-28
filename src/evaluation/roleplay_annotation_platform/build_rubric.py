@@ -122,24 +122,81 @@ def build_rubric(markdown_path: Path) -> dict[str, Any]:
             item_lookup[item["id"]] = item
             index += 1
 
-        while index < len(lines) and not lines[index].startswith("| 原子项 | 案例背景"):
-            if re.match(r"^## 维度[一二三四五]：", lines[index]):
-                raise ValueError(f"missing example table for {name}")
-            index += 1
-        index += 2
-        while index < len(lines) and lines[index].startswith("|"):
-            cells = split_row(lines[index])
-            if len(cells) != 6:
-                raise ValueError(f"invalid example row: {lines[index]}")
-            item_id = cells[0].split()[0]
-            item_lookup[item_id]["example"] = {
-                "background": cells[1],
-                "0": cells[2],
-                "1": cells[3],
-                "2": cells[4],
-                "3": cells[5],
-            }
-            index += 1
+        dimension_end = index
+        while dimension_end < len(lines) and not re.match(
+            r"^## 维度[一二三四五]：", lines[dimension_end]
+        ):
+            dimension_end += 1
+
+        table_start = next(
+            (
+                cursor
+                for cursor in range(index, dimension_end)
+                if lines[cursor].startswith("| 原子项 | 案例背景")
+            ),
+            None,
+        )
+        if table_start is not None:
+            index = table_start + 2
+            while index < dimension_end and lines[index].startswith("|"):
+                cells = split_row(lines[index])
+                if len(cells) != 6:
+                    raise ValueError(f"invalid example row: {lines[index]}")
+                item_id = cells[0].split()[0]
+                item_lookup[item_id]["example"] = {
+                    "background": cells[1],
+                    "0": cells[2],
+                    "1": cells[3],
+                    "2": cells[4],
+                    "3": cells[5],
+                }
+                index += 1
+        else:
+            cursor = index
+            while cursor < dimension_end:
+                heading = re.match(r"^#### ([A-Z]\d+)\s+(.+)$", lines[cursor])
+                if not heading:
+                    cursor += 1
+                    continue
+                item_id = heading.group(1)
+                if item_id not in item_lookup:
+                    raise ValueError(f"unknown example item: {item_id}")
+                cursor += 1
+                while cursor < dimension_end and not lines[cursor].strip():
+                    cursor += 1
+                if cursor >= dimension_end or not lines[cursor].startswith("背景："):
+                    raise ValueError(f"missing example background for {item_id}")
+                background = lines[cursor].removeprefix("背景：").strip()
+                cursor += 1
+                examples: dict[str, str] = {"background": background}
+                for score in ("0", "1", "2", "3"):
+                    marker = f"**{score} 分**"
+                    while cursor < dimension_end and lines[cursor].strip() != marker:
+                        if re.match(r"^#### [A-Z]\d+\s+", lines[cursor]):
+                            raise ValueError(f"missing {score}-point example for {item_id}")
+                        cursor += 1
+                    if cursor >= dimension_end:
+                        raise ValueError(f"missing {score}-point example for {item_id}")
+                    cursor += 1
+                    quote_lines: list[str] = []
+                    while cursor < dimension_end:
+                        line = lines[cursor]
+                        if re.match(r"^\*\*[0-3] 分\*\*$", line):
+                            break
+                        if re.match(r"^#### [A-Z]\d+\s+", line):
+                            break
+                        if line.startswith("**3 分高于 2 分：**"):
+                            break
+                        if line.startswith(">"):
+                            quote_lines.append(line[1:].lstrip())
+                        cursor += 1
+                    while quote_lines and not quote_lines[-1]:
+                        quote_lines.pop()
+                    examples[score] = "\n".join(quote_lines).strip()
+                    if not examples[score]:
+                        raise ValueError(f"empty {score}-point example for {item_id}")
+                item_lookup[item_id]["example"] = examples
+            index = dimension_end
         dimensions.append(dimension)
 
     ids = [item["id"] for dimension in dimensions for item in dimension["items"]]

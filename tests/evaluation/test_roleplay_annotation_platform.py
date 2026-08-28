@@ -25,6 +25,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 RUBRIC_MARKDOWN = (
     REPO_ROOT / "docs" / "evaluation" / "ROLEPLAY_EVALUATION_DIMENSIONS_V0_1.md"
 )
+RUBRIC_JSON = (
+    REPO_ROOT / "src" / "evaluation" / "roleplay_annotation_platform" / "rubric.json"
+)
 PLATFORM_JS = (
     REPO_ROOT / "src" / "evaluation" / "roleplay_annotation_platform" / "static" / "app.js"
 )
@@ -78,15 +81,23 @@ class PlatformApiTests(unittest.TestCase):
             handle.write(json.dumps(sample_record("eval_two", "Candidate two")) + "\n")
         cls.sample_db = cls.root / "samples.sqlite3"
         build_samples_db(source, cls.sample_db)
+        cls.labels_csv = cls.root / "evaluation_labels.csv"
+        cls.labels_csv.write_text(
+            "evaluation_id,pair_group_id,model_id,model_name,human_selected,source_completed_at\n"
+            "eval_one,pair_one,1,model-one,1,2026-08-26 12:00:00\n"
+            "eval_two,pair_one,2,model-two,0,2026-08-26 12:00:00\n",
+            encoding="utf-8",
+        )
         cls.rubric_json = cls.root / "rubric.json"
         cls.rubric_json.write_text(
-            json.dumps(build_rubric(RUBRIC_MARKDOWN), ensure_ascii=False),
+            RUBRIC_JSON.read_text(encoding="utf-8"),
             encoding="utf-8",
         )
         os.environ["ROLEPLAY_SAMPLE_DB"] = str(cls.sample_db)
         os.environ["ROLEPLAY_RESULTS_DB"] = str(cls.root / "results" / "annotations.sqlite3")
         os.environ["ROLEPLAY_RESULTS_DIR"] = str(cls.root / "results" / "by_user")
         os.environ["ROLEPLAY_RUBRIC_JSON"] = str(cls.rubric_json)
+        os.environ["ROLEPLAY_LABELS_CSV"] = str(cls.labels_csv)
         with socket.socket() as listener:
             listener.bind(("127.0.0.1", 0))
             cls.port = listener.getsockname()[1]
@@ -166,7 +177,7 @@ class PlatformApiTests(unittest.TestCase):
         }
 
     def score_payload(self, value: int = 2, evidence: str = "") -> dict:
-        rubric = build_rubric(RUBRIC_MARKDOWN)
+        rubric = json.loads(RUBRIC_JSON.read_text(encoding="utf-8"))
         return {
             item["id"]: {"value": value, "evidence": evidence}
             for dimension in rubric["dimensions"]
@@ -234,6 +245,33 @@ class PlatformApiTests(unittest.TestCase):
         )
         self.assertEqual(200, status)
         self.assertEqual("submitted", response["status"])
+
+    def test_battle_replays_pair_and_hides_model_identity(self) -> None:
+        client = self.client()
+        self.request_json(client, "/api/login", "POST", {"username": "viewer"})
+        status, response = self.request_json(client, "/api/battle/1")
+        self.assertEqual(200, status)
+        self.assertEqual(1, response["pair_seq"])
+        self.assertEqual(1, response["total"])
+        self.assertTrue(response["context_match"])
+        self.assertEqual({"A", "B"}, {candidate["label"] for candidate in response["candidates"]})
+        self.assertEqual(
+            {"Candidate one", "Candidate two"},
+            {candidate["content"] for candidate in response["candidates"]},
+        )
+        self.assertEqual(1, sum(candidate["online_selected"] for candidate in response["candidates"]))
+        serialized = json.dumps(response)
+        self.assertNotIn("model-one", serialized)
+        self.assertNotIn("model-two", serialized)
+        self.assertNotIn("pair_one", serialized)
+        self.assertNotIn("eval_one", serialized)
+
+        status, models = self.request_json(client, "/api/battle/1/models")
+        self.assertEqual(200, status)
+        self.assertEqual(
+            {"model-one", "model-two"},
+            {model["model_name"] for model in models["models"]},
+        )
 
 
 if __name__ == "__main__":

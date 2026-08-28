@@ -9,6 +9,7 @@ Environment=ROLEPLAY_SAMPLE_DB=/home/shared/roleplay-blind-evaluation/data/sampl
 Environment=ROLEPLAY_RESULTS_DB=/home/shared/roleplay-blind-evaluation/results/annotations.sqlite3
 Environment=ROLEPLAY_RESULTS_DIR=/home/shared/roleplay-blind-evaluation/results/by_user
 Environment=ROLEPLAY_RUBRIC_JSON=/home/shared/roleplay-blind-evaluation/app/roleplay_annotation_platform/rubric.json
+Environment=ROLEPLAY_LABELS_CSV=/home/shared/roleplay-blind-evaluation/ground_truth/evaluation_labels.csv
 ExecStart=/opt/miniconda3/bin/python3 -m uvicorn roleplay_annotation_platform.app:app --host 0.0.0.0 --port 8766 --workers 2
 Restart=always
 RestartSec=3

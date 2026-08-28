@@ -21,7 +21,7 @@
     └── by_user/<username>/<sequence_number>.json
 ```
 
-`data/` 是平台实际读取的双盲数据。`ground_truth/` 保存解盲标签和审计数据，平台代码不会读取，也不会通过网页或 API 返回。
+`data/` 是双盲标注模式读取的数据。`ground_truth/` 保存解盲标签和审计数据；普通标注页面与 `/api/sample/*` 不读取或返回这些字段。Battle 回放模式只读取胜负标签，并且只向页面返回匿名候选 A/B、用户选中的一侧和投票时间，不返回模型身份、`evaluation_id` 或 `pair_group_id`。
 
 ## 输入数据
 
@@ -76,7 +76,7 @@ evaluation_id,pair_group_id,model_id,model_name,human_selected,source_completed_
 | `human_selected` | 该候选是否被线上用户选中；每组恰好一条为真 |
 | `source_completed_at` | 原投票完成时间 |
 
-标注期间不要把该文件放进网页目录，也不要交给标注员。人工结果冻结后，使用 `evaluation_id` 合并即可恢复模型身份与真人胜负。
+该文件不放进静态网页目录。人工结果冻结后，使用 `evaluation_id` 合并即可恢复模型身份与真人胜负。Battle 模式属于解盲回放；需要保持严格盲态时，应先完成评分再进入 Battle 页面。
 
 ### `evaluation_context_audit.jsonl.gz`
 
@@ -95,6 +95,20 @@ evaluation_id,pair_group_id,model_id,model_name,human_selected,source_completed_
 - 证据和原因暂时均为可选项；
 - 可保存草稿、修改已提交记录、前后翻页或按序号跳转；
 - 每分钟自动保存一次未保存草稿。
+
+## Battle 投票回放
+
+登录后访问 `/battle`，可以按线上投票组顺序回放 13,269 组对比：
+
+- 同一段 `System → Greeting → User/Assistant 历史` 只展示一次；
+- 两条候选回复以匿名 A/B 并排展示；
+- 线上用户选中的候选会高亮，并显示原投票完成时间；
+- A/B 位置由稳定哈希确定，不让胜者固定出现在同一侧；
+- 模型身份默认隐藏，点击“查看模型名称”后通过独立接口按需显示，也可以再次隐藏；
+- 内部评估 ID 和配对 ID 不通过 Battle API 返回；
+- Battle 只读，不会改变任何人的评分、草稿或进度。
+
+Battle 会显示线上胜负，属于解盲页面。正在执行严格双盲标注时，标注员应在完成当前评分后再查看。
 
 用户名允许 1–40 个中文、字母、数字、下划线或连字符。平台没有密码验证；知道地址的人可以创建用户名，因此不要把地址公开传播。
 

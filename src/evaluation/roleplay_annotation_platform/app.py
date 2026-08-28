@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import hashlib
 import json
 import os
 import re
@@ -25,6 +27,9 @@ RESULT_DB = Path(
 )
 RESULT_DIR = Path(
     os.environ.get("ROLEPLAY_RESULTS_DIR", MODULE_DIR / "results" / "by_user")
+)
+LABELS_CSV = Path(
+    os.environ.get("ROLEPLAY_LABELS_CSV", MODULE_DIR / "data" / "evaluation_labels.csv")
 )
 COOKIE_NAME = "roleplay_annotation_session"
 USERNAME_RE = re.compile(r"^[\w\-]{1,40}$", re.UNICODE)
@@ -114,11 +119,86 @@ def load_sample_metadata() -> dict[str, str]:
     return metadata
 
 
+def load_battle_pairs() -> list[dict[str, Any]]:
+    if not LABELS_CSV.is_file():
+        return []
+
+    required = {
+        "evaluation_id",
+        "pair_group_id",
+        "model_name",
+        "human_selected",
+        "source_completed_at",
+    }
+    groups: dict[str, list[dict[str, Any]]] = {}
+    label_ids: set[str] = set()
+    with LABELS_CSV.open("r", encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle)
+        missing = required - set(reader.fieldnames or [])
+        if missing:
+            raise RuntimeError(f"battle labels missing columns: {sorted(missing)}")
+        for line_number, row in enumerate(reader, start=2):
+            evaluation_id = str(row.get("evaluation_id", "")).strip()
+            pair_group_id = str(row.get("pair_group_id", "")).strip()
+            selected_raw = str(row.get("human_selected", "")).strip().lower()
+            if not evaluation_id or not pair_group_id:
+                raise RuntimeError(f"battle labels line {line_number} has an empty ID")
+            if evaluation_id in label_ids:
+                raise RuntimeError(f"duplicate battle evaluation_id: {evaluation_id}")
+            if selected_raw in {"1", "true", "yes"}:
+                selected = True
+            elif selected_raw in {"0", "false", "no"}:
+                selected = False
+            else:
+                raise RuntimeError(
+                    f"battle labels line {line_number} has invalid human_selected"
+                )
+            label_ids.add(evaluation_id)
+            groups.setdefault(pair_group_id, []).append(
+                {
+                    "evaluation_id": evaluation_id,
+                    "model_name": str(row.get("model_name", "")).strip() or "未知模型",
+                    "selected": selected,
+                    "completed_at": str(row.get("source_completed_at", "")).strip(),
+                }
+            )
+
+    with sample_connection() as connection:
+        sample_ids = {
+            str(row["evaluation_id"])
+            for row in connection.execute("SELECT evaluation_id FROM samples")
+        }
+    missing_samples = label_ids - sample_ids
+    if missing_samples:
+        example = sorted(missing_samples)[:3]
+        raise RuntimeError(f"battle labels reference missing samples: {example}")
+
+    pairs: list[dict[str, Any]] = []
+    for pair_group_id, entries in groups.items():
+        if len(entries) != 2 or sum(bool(entry["selected"]) for entry in entries) != 1:
+            raise RuntimeError(
+                f"battle pair {pair_group_id} must contain two candidates and one winner"
+            )
+        entries.sort(
+            key=lambda entry: hashlib.sha256(
+                f"{pair_group_id}:{entry['evaluation_id']}".encode("utf-8")
+            ).hexdigest()
+        )
+        pairs.append(
+            {
+                "entries": entries,
+                "completed_at": entries[0]["completed_at"],
+            }
+        )
+    return pairs
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     APP_STATE["rubric"] = load_rubric()
     APP_STATE["sample_metadata"] = load_sample_metadata()
     APP_STATE["total"] = int(APP_STATE["sample_metadata"]["sample_count"])
+    APP_STATE["battle_pairs"] = load_battle_pairs()
     initialize_results()
     yield
 
@@ -174,6 +254,18 @@ def sample_row(seq: int) -> sqlite3.Row:
         ).fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail="样本不存在")
+    return row
+
+
+def sample_row_by_evaluation_id(evaluation_id: str) -> sqlite3.Row:
+    with sample_connection() as connection:
+        row = connection.execute(
+            "SELECT seq, evaluation_id, trigger_type, payload_zlib "
+            "FROM samples WHERE evaluation_id = ?",
+            (evaluation_id,),
+        ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Battle 候选不存在")
     return row
 
 
@@ -351,11 +443,17 @@ def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/battle")
+def battle_index() -> FileResponse:
+    return FileResponse(STATIC_DIR / "battle.html")
+
+
 @app.get("/health")
 def health() -> dict[str, Any]:
     return {
         "status": "ok",
         "samples": APP_STATE.get("total", 0),
+        "battle_pairs": len(APP_STATE.get("battle_pairs", [])),
         "rubric_version": APP_STATE.get("rubric", {}).get("version"),
     }
 
@@ -437,6 +535,71 @@ def sample(seq: int, request: Request) -> dict[str, Any]:
     payload["annotation"] = existing_annotation(username, seq)
     payload["progress"] = progress_for(username)
     return payload
+
+
+@app.get("/api/battle/{pair_seq}")
+def battle(pair_seq: int, request: Request) -> dict[str, Any]:
+    require_username(request)
+    pairs = APP_STATE.get("battle_pairs", [])
+    if not pairs:
+        raise HTTPException(status_code=503, detail="Battle 回放数据尚未配置")
+    if pair_seq < 1 or pair_seq > len(pairs):
+        raise HTTPException(status_code=404, detail="Battle 序号不存在")
+
+    pair = pairs[pair_seq - 1]
+    decoded = [
+        decode_sample(sample_row_by_evaluation_id(str(entry["evaluation_id"])))
+        for entry in pair["entries"]
+    ]
+    context_match = (
+        decoded[0]["messages"] == decoded[1]["messages"]
+        and decoded[0]["trigger_type"] == decoded[1]["trigger_type"]
+    )
+    candidates = []
+    online_selected = ""
+    for index, (entry, payload) in enumerate(zip(pair["entries"], decoded, strict=True)):
+        label = "A" if index == 0 else "B"
+        selected = bool(entry["selected"])
+        if selected:
+            online_selected = label
+        candidates.append(
+            {
+                "label": label,
+                "content": payload["candidate"]["content"],
+                "online_selected": selected,
+            }
+        )
+    return {
+        "pair_seq": pair_seq,
+        "total": len(pairs),
+        "trigger_type": decoded[0]["trigger_type"],
+        "messages": decoded[0]["messages"],
+        "context_match": context_match,
+        "candidates": candidates,
+        "online_selected": online_selected,
+        "source_completed_at": pair["completed_at"],
+    }
+
+
+@app.get("/api/battle/{pair_seq}/models")
+def battle_models(pair_seq: int, request: Request) -> dict[str, Any]:
+    require_username(request)
+    pairs = APP_STATE.get("battle_pairs", [])
+    if not pairs:
+        raise HTTPException(status_code=503, detail="Battle 回放数据尚未配置")
+    if pair_seq < 1 or pair_seq > len(pairs):
+        raise HTTPException(status_code=404, detail="Battle 序号不存在")
+    entries = pairs[pair_seq - 1]["entries"]
+    return {
+        "pair_seq": pair_seq,
+        "models": [
+            {
+                "label": "A" if index == 0 else "B",
+                "model_name": str(entry["model_name"]),
+            }
+            for index, entry in enumerate(entries)
+        ],
+    }
 
 
 @app.post("/api/annotation")
