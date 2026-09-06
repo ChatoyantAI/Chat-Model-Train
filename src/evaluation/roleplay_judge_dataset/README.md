@@ -1,6 +1,6 @@
 # Roleplay Judge Dataset
 
-> 状态：开发中
+> 状态：上下文重建与匿名单回复数据构建实现可用
 >
 > 主负责人：`@gaoxiaomo`
 >
@@ -16,6 +16,11 @@
 这里的结果是“按照采集期生产逻辑和冻结数据得到的高保真上下文重建”，
 不是生产环境保存下来的原始请求包。生产系统没有持久化最终
 `input_messages`。
+
+会话过滤复用本模块的 `build_platform_system_prompt()`，不读取角色资料里的旧整段
+`prompt` 字段。单回复与会话两种调用保留各自的时间范围、历史选择及来源标记；共用模板
+不代表会话索引是逐轮原始请求回放。会话侧契约见
+[会话过滤规范](../../../docs/evaluation/ROLEPLAY_CONVERSATION_FILTER_V1.md)。
 
 ## 范围与边界
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from functools import lru_cache
 import json
 from pathlib import Path
 import re
@@ -169,18 +170,16 @@ def restore_history(
     reversed_edits = 0
     for event in reversed(mutation_rows):
         event_time = _parse_time(event.get("created_at"))
-        if (
-            event_time is None
-            or started_at is None
-            or event_time <= started_at
-        ):
+        if event_time is None or started_at is None or event_time <= started_at:
             continue
 
         event_type = event.get("event_type")
         if event_type == "regenerate":
             replacement = event.get("replacement_increase_id")
             source = event.get("source_increase_id")
-            applied = replacement in active_by_increase_id or source in active_by_increase_id
+            applied = (
+                replacement in active_by_increase_id or source in active_by_increase_id
+            )
             if replacement in active_by_increase_id:
                 active_by_increase_id[int(replacement)] = False
             if source in active_by_increase_id:
@@ -197,8 +196,13 @@ def restore_history(
             reversed_version_selections += int(applied)
         elif event_type == "edit":
             target = event.get("target_increase_id")
-            if target in messages_by_increase_id and event.get("before_content") is not None:
-                messages_by_increase_id[int(target)]["content"] = event["before_content"]
+            if (
+                target in messages_by_increase_id
+                and event.get("before_content") is not None
+            ):
+                messages_by_increase_id[int(target)]["content"] = event[
+                    "before_content"
+                ]
                 reversed_edits += 1
 
     images_by_message: dict[str, list[dict[str, Any]]] = {}
@@ -283,6 +287,7 @@ def _output_language_name(language: str | None) -> str:
     return OUTPUT_LANGUAGE_NAMES[_supported_language(language)]
 
 
+@lru_cache(maxsize=1)
 def _load_templates() -> tuple[dict[str, str], dict[str, Any]]:
     names = (
         "prompt_chat",
@@ -305,7 +310,9 @@ def _load_templates() -> tuple[dict[str, str], dict[str, Any]]:
             (TEMPLATE_DIR / "basic_chat_prompts.json").read_text(encoding="utf-8")
         )
     except (OSError, json.JSONDecodeError) as exc:
-        raise ContextBuildError(f"cannot load frozen production templates: {exc}") from exc
+        raise ContextBuildError(
+            f"cannot load frozen production templates: {exc}"
+        ) from exc
     return templates, basic
 
 
@@ -357,9 +364,7 @@ def replace_dynamic_placeholders(
     return _DYNAMIC_PLACEHOLDER_PATTERN.sub(replacer, text)
 
 
-def _substitute_card_macros(
-    value: str, *, character_name: str, user_name: str
-) -> str:
+def _substitute_card_macros(value: str, *, character_name: str, user_name: str) -> str:
     replacements = {
         "{{char}}": character_name,
         "{{Char}}": character_name,
@@ -489,7 +494,9 @@ def _build_card_lorebook_prompt(
             user_name=user_name,
         )
         if content:
-            activated.append((_as_int(entry.get("insertion_order"), 100), index, content))
+            activated.append(
+                (_as_int(entry.get("insertion_order"), 100), index, content)
+            )
     activated.sort(key=lambda item: (-item[0], item[1]))
 
     selected: list[str] = []
@@ -602,7 +609,7 @@ def _length_guideline(mode: str, max_tokens: int, language: str) -> str:
             f"- Target length: {int(max_tokens * 0.8)}-{max_tokens} words total\n"
             f"- Interweave dialogue and narration naturally for engaging rhythm\n"
             f"- Alternate between speech and action for flow\n"
-            f"- Reply in this format: Dialogue in \"quotes\", narration in *asterisks*. Don't nest symbols (no quotes inside asterisks, no asterisks inside quotes).\n"
+            f'- Reply in this format: Dialogue in "quotes", narration in *asterisks*. Don\'t nest symbols (no quotes inside asterisks, no asterisks inside quotes).\n'
             f"- Never include word count, token count, or meta commentary\n"
             f"- All output must be in {language} language\n"
             f"</guideline>"
@@ -613,7 +620,7 @@ def _length_guideline(mode: str, max_tokens: int, language: str) -> str:
             f"- Blend dialogue and rich narration seamlessly for immersive experience\n"
             f"- Layer sensory details, emotional depth, and character voice\n"
             f"- Let moments breathe, build atmosphere organically\n"
-            f"- Reply in this format: Dialogue in \"quotes\", narration in *asterisks*. Don't nest symbols (no quotes inside asterisks, no asterisks inside quotes).\n"
+            f'- Reply in this format: Dialogue in "quotes", narration in *asterisks*. Don\'t nest symbols (no quotes inside asterisks, no asterisks inside quotes).\n'
             f"- Never include word count, token count, or meta commentary\n"
             f"- All output must be in {language} language\n"
             f"</guideline>"
@@ -694,7 +701,9 @@ def _select_candidate_history(
         if len(turns) > KEEP_RECENT_TURNS:
             removed_turn = turns[-KEEP_RECENT_TURNS - 1]
             boundary = _max_turn_increase_id(removed_turn)
-            messages = [message for turn in turns[-KEEP_RECENT_TURNS:] for message in turn]
+            messages = [
+                message for turn in turns[-KEEP_RECENT_TURNS:] for message in turn
+            ]
             boundary_reason = "small_context_recent_turns"
     elif summary is not None:
         boundary = int(summary.get("compressed_until_increase_id") or 0)
@@ -720,13 +729,17 @@ def _select_candidate_history(
                 ]
             boundary_reason = "memory_bootstrap_recent_turns"
 
-    return list(messages), effective_summary, {
-        "is_small_context_model": is_small,
-        "history_boundary": boundary,
-        "history_boundary_reason": boundary_reason,
-        "summary_record_present": summary is not None,
-        "summary_ignored_for_small_context": bool(is_small and summary is not None),
-    }
+    return (
+        list(messages),
+        effective_summary,
+        {
+            "is_small_context_model": is_small,
+            "history_boundary": boundary,
+            "history_boundary_reason": boundary_reason,
+            "summary_record_present": summary is not None,
+            "summary_ignored_for_small_context": bool(is_small and summary is not None),
+        },
+    )
 
 
 def _coalesce_history_messages(
@@ -745,12 +758,15 @@ def _coalesce_history_messages(
             continue
         content = _remove_markdown_links(item.get("content"))
         if role == "assistant":
-            content = replace_dynamic_placeholders(
-                content,
-                user_name=user_name,
-                character_name=character_name,
-                user_gender=user_gender,
-            ) or ""
+            content = (
+                replace_dynamic_placeholders(
+                    content,
+                    user_name=user_name,
+                    character_name=character_name,
+                    user_gender=user_gender,
+                )
+                or ""
+            )
         else:
             image_contexts = image_contexts_by_message_key.get(
                 str(item.get("message_key")), ()
@@ -761,9 +777,7 @@ def _coalesce_history_messages(
 
         if result and result[-1]["role"] == role:
             if content:
-                result[-1]["content"] = (
-                    f"{result[-1]['content']}\n\n{content}".strip()
-                )
+                result[-1]["content"] = f"{result[-1]['content']}\n\n{content}".strip()
         else:
             result.append({"role": str(role), "content": content})
 
@@ -791,7 +805,9 @@ def _format_character_prompt(
     user_gender: int | None,
 ) -> str:
     character_name = str(character.get("name") or "your dear")
-    user_name = str(persona.get("nickname")) if persona and persona.get("nickname") else "user"
+    user_name = (
+        str(persona.get("nickname")) if persona and persona.get("nickname") else "user"
+    )
     first_message = _remove_markdown_links(character.get("greeting"))
     card_description = str(character.get("card_prompt_description") or "").strip()
     card_lorebook_block = _build_card_lorebook_prompt(
@@ -831,18 +847,81 @@ def _format_character_prompt(
         return replacements.get(key, match.group(0))
 
     result = re.sub(r"\{\{(.*?)\}\}", replacer, template)
-    return replace_dynamic_placeholders(
-        result,
-        user_name=user_name,
-        character_name=character_name,
-        user_gender=user_gender,
-    ) or ""
+    return (
+        replace_dynamic_placeholders(
+            result,
+            user_name=user_name,
+            character_name=character_name,
+            user_gender=user_gender,
+        )
+        or ""
+    )
 
 
 def _runtime_value(runtime: Mapping[str, Any], key: str) -> Any:
     if key not in runtime:
         raise ContextBuildError(f"runtime snapshot is missing {key!r}")
     return runtime[key]
+
+
+def build_platform_system_prompt(
+    character: Mapping[str, Any],
+    persona: Mapping[str, Any] | None,
+    *,
+    query: str,
+    message_list: Sequence[Mapping[str, Any]],
+    language: str,
+    max_tokens: int,
+    user_gender: int | None,
+    is_test_account: bool,
+    prompt_variant: str | None = None,
+) -> tuple[str, str]:
+    """Shared production template assembly. Never reads a stored character prompt."""
+    mode = select_mode_by_tokens(max_tokens)
+    templates, _ = _load_templates()
+    if is_test_account:
+        name = (
+            "prompt_green_collaborative"
+            if character.get("third_person_perspective")
+            else "prompt_green"
+        )
+    elif character.get("third_person_perspective"):
+        name = "prompt_collaborative"
+    else:
+        name = {
+            "chat": "prompt_chat",
+            "scene": "prompt_scene",
+            "longText": "prompt_long_text",
+        }[mode]
+        if prompt_variant == "user_priority":
+            name += "_user_priority"
+    template = _inject_prompt_block_before_last_anchor(
+        templates[name], templates["prompt_restricted_topics"], "**Output Format:**"
+    )
+    content = _format_character_prompt(
+        template,
+        character=character,
+        persona=persona,
+        query=query,
+        message_list=message_list,
+        language=language,
+        max_tokens=max_tokens,
+        mode=mode,
+        user_gender=user_gender,
+    )
+    content += _build_persona_prompt_block(persona)
+    content = (
+        replace_dynamic_placeholders(
+            content,
+            user_name=str(persona.get("nickname"))
+            if persona and persona.get("nickname")
+            else "user",
+            character_name=str(character.get("name") or "your dear"),
+            user_gender=user_gender,
+        )
+        or ""
+    )
+    return content, name
 
 
 def build_candidate_context(
@@ -869,7 +948,11 @@ def build_candidate_context(
 
     trigger = comparison["trigger"]
     trigger_type = trigger.get("type")
-    query = CONTINUE_USER_QUERY if trigger_type == "continue" else str(trigger.get("content") or "")
+    query = (
+        CONTINUE_USER_QUERY
+        if trigger_type == "continue"
+        else str(trigger.get("content") or "")
+    )
     language_code = str(trigger.get("language") or "en")
     output_language = _output_language_name(language_code)
 
@@ -899,52 +982,26 @@ def build_candidate_context(
         "greeting": greeting,
         "card_prompt_description": character_snapshot.get("card_prompt_description"),
         "card_lorebook": character_snapshot.get("card_lorebook"),
+        "third_person_perspective": character_snapshot.get("third_person_perspective"),
     }
     persona = comparison.get("persona_snapshot_at_export") or None
     character_name = str(character.get("name") or "your dear")
-    user_name = str(persona.get("nickname")) if persona and persona.get("nickname") else "user"
+    user_name = (
+        str(persona.get("nickname")) if persona and persona.get("nickname") else "user"
+    )
 
     templates, basic_chat_prompts = _load_templates()
-    if is_test_account:
-        template_name = (
-            "prompt_green_collaborative"
-            if bool(character_snapshot.get("third_person_perspective"))
-            else "prompt_green"
-        )
-    elif bool(character_snapshot.get("third_person_perspective")):
-        template_name = "prompt_collaborative"
-    else:
-        template_name = {
-            "chat": "prompt_chat",
-            "scene": "prompt_scene",
-            "longText": "prompt_long_text",
-        }[mode]
-        if prompt_variant == "user_priority":
-            template_name += "_user_priority"
-
-    template = _inject_prompt_block_before_last_anchor(
-        templates[template_name],
-        templates["prompt_restricted_topics"],
-        "**Output Format:**",
-    )
-    system_content = _format_character_prompt(
-        template,
-        character=character,
-        persona=persona,
+    system_content, template_name = build_platform_system_prompt(
+        character,
+        persona,
         query=query,
         message_list=selected_history,
         language=output_language,
         max_tokens=max_tokens,
-        mode=mode,
         user_gender=user_gender,
+        is_test_account=is_test_account,
+        prompt_variant=prompt_variant,
     )
-    system_content += _build_persona_prompt_block(persona)
-    system_content = replace_dynamic_placeholders(
-        system_content,
-        user_name=user_name,
-        character_name=character_name,
-        user_gender=user_gender,
-    ) or ""
 
     input_messages: list[dict[str, str]] = [
         {"role": "system", "content": system_content}
@@ -954,9 +1011,7 @@ def build_candidate_context(
         restored_history.trigger_message_key or "", ()
     )
     if current_image_contexts:
-        input_messages.append(
-            {"role": "system", "content": CHAT_IMAGE_SYSTEM_PROMPT}
-        )
+        input_messages.append({"role": "system", "content": CHAT_IMAGE_SYSTEM_PROMPT})
 
     summary_used = False
     if effective_summary is not None:
@@ -1009,7 +1064,9 @@ def build_candidate_context(
 
     current_query = query
     if current_image_contexts:
-        current_query = _build_augmented_chat_query(current_query, current_image_contexts)
+        current_query = _build_augmented_chat_query(
+            current_query, current_image_contexts
+        )
     guideline = _length_guideline(mode, max_tokens, output_language)
     guideline = _append_extra_user_guideline(
         guideline,
@@ -1017,7 +1074,9 @@ def build_candidate_context(
     )
     input_messages.append({"role": "user", "content": current_query + guideline})
 
-    retained_ids = [int(message.get("increase_id") or 0) for message in selected_history]
+    retained_ids = [
+        int(message.get("increase_id") or 0) for message in selected_history
+    ]
     audit = {
         "production_code_commit": PRODUCTION_CODE_COMMIT,
         "template": template_name,
@@ -1026,8 +1085,12 @@ def build_candidate_context(
         "context_window_k": context_window_k,
         "summary_used": summary_used,
         **trim_audit,
-        "history_first_retained_increase_id": min(retained_ids) if retained_ids else None,
-        "history_last_retained_increase_id": max(retained_ids) if retained_ids else None,
+        "history_first_retained_increase_id": min(retained_ids)
+        if retained_ids
+        else None,
+        "history_last_retained_increase_id": max(retained_ids)
+        if retained_ids
+        else None,
         "history_retained_physical_messages": len(selected_history),
         "greeting_source": greeting_source,
         "greeting_included": greeting_included,

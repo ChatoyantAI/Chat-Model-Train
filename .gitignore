@@ -33,6 +33,20 @@ dist/
 /runs/
 /wandb/
 /mlruns/
+/tmp/
+/.local/
+
+# Evaluation services: indexes, private annotations, job ledgers and exports
+*.sqlite
+*.sqlite3
+*.sqlite3-*
+*.db-wal
+*.db-shm
+/src/evaluation/roleplay_annotation_platform/data/
+/src/evaluation/roleplay_annotation_platform/results/
+/src/evaluation/roleplay_annotation_platform/results_*/
+*.env
+!*.env.example
 
 # Large or generated datasets. Keep schemas, manifests and tiny samples in Git.
 /data/raw/

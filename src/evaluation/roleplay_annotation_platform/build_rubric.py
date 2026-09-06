@@ -16,15 +16,6 @@ DIMENSION_IDS = {
     "维度五": "narrative",
 }
 
-SAFETY_VALUES = {
-    "G-S1": {"是": "yes", "否": "no", "不清楚": "unclear"},
-    "G-S2": {"通过": "pass", "失败": "fail", "N/A": "N/A"},
-    "G-S3": {"是": "yes", "否": "no", "N/A": "N/A"},
-}
-
-SAFETY_DEFAULTS = {"G-S1": "no", "G-S2": "N/A", "G-S3": "no"}
-
-
 def split_row(line: str) -> list[str]:
     return [part.strip() for part in line.strip().strip("|").split("|")]
 
@@ -74,7 +65,10 @@ def parse_cases(lines: list[str], start: int, end: int) -> list[dict[str, Any]]:
         r"^\*\*(?P<label>案例[^*]*)\*\*\s*"
         r"(?P<background_label>背景(?:（[^）]+）)?)：(?P<background>.*)$"
     )
-    score_pattern = re.compile(r"^\*\*([0-3]) 分([^*]*)\*\*$")
+    score_pattern = re.compile(
+        r"^\*\*(?:(?P<numeric>[0-3]) 分(?P<numeric_suffix>[^*]*)|"
+        r"(?P<na>N/A)(?P<na_suffix>\s+·[^*]+))\*\*$"
+    )
     case_starts = [index for index in range(start, end) if case_pattern.match(lines[index])]
     cases: list[dict[str, Any]] = []
 
@@ -108,10 +102,18 @@ def parse_cases(lines: list[str], start: int, end: int) -> list[dict[str, Any]]:
                 quote_lines.pop(0)
             while quote_lines and not quote_lines[-1]:
                 quote_lines.pop()
+            score = score_match.group("numeric") or score_match.group("na")
+            suffix = (
+                score_match.group("numeric_suffix")
+                if score_match.group("numeric") is not None
+                else score_match.group("na_suffix")
+            )
             examples.append(
                 {
-                    "score": score_match.group(1),
-                    "label": f"{score_match.group(1)} 分{score_match.group(2)}",
+                    "score": score,
+                    "label": (
+                        f"{score} 分{suffix}" if score != "N/A" else f"N/A{suffix}"
+                    ),
                     "reply": "\n".join(quote_lines),
                     "explanation": "\n".join(explanation_lines),
                     "source_markdown": exact_block(lines, example_start, example_end),
@@ -153,10 +155,16 @@ def parse_item_section(
         ),
         None,
     )
-    if na_index is None:
+    allows_na = bool(item["allows_na"])
+    if allows_na and na_index is None:
         raise ValueError(f"missing N/A condition for {item['id']}")
+    if not allows_na and na_index is not None:
+        raise ValueError(f"unexpected N/A condition for {item['id']}")
 
-    instruction_end = not_counted_index if not_counted_index is not None else na_index
+    guidance_markers = [
+        index for index in (not_counted_index, na_index) if index is not None
+    ]
+    instruction_end = min(guidance_markers, default=case_index)
     steps: list[str] = []
     decision_notes: list[str] = []
     for line in lines[decision_index + 1 : instruction_end]:
@@ -176,7 +184,17 @@ def parse_item_section(
         rest.extend(line.strip() for line in lines[label_index + 1 : section_end] if line.strip())
         return "\n".join(rest).strip()
 
-    not_counted_end = na_index if not_counted_index is not None else na_index
+    not_counted_end = (
+        min(
+            [
+                index
+                for index in (na_index, case_index)
+                if index is not None and index > not_counted_index
+            ]
+        )
+        if not_counted_index is not None
+        else case_index
+    )
     item.update(
         {
             "intro": nonempty_text(lines, body_start, decision_index),
@@ -200,7 +218,6 @@ def parse_gates(lines: list[str]) -> tuple[str, list[dict[str, Any]], str]:
     gate_intro = nonempty_text(lines, gate_start + 1, first_group_start)
     group_specs = [
         ("数据有效性 Gate", "boolean"),
-        ("安全与上线资格 Gate", "enum"),
         ("产品体验失败 Gate", "boolean"),
     ]
     groups: list[dict[str, Any]] = []
@@ -221,24 +238,7 @@ def parse_gates(lines: list[str]) -> tuple[str, list[dict[str, Any]], str]:
         items: list[dict[str, Any]] = []
         for row in rows:
             gate_id = row[0]
-            if gate_type == "enum":
-                value_map = SAFETY_VALUES.get(gate_id)
-                if value_map is None:
-                    raise ValueError(f"missing enum mapping for {gate_id}")
-                labels = [part.strip() for part in row[2].split(" / ")]
-                items.append(
-                    {
-                        "id": gate_id,
-                        "question": row[1],
-                        "type": "enum",
-                        "options": [
-                            {"value": value_map[label], "label": label} for label in labels
-                        ],
-                        "default": SAFETY_DEFAULTS[gate_id],
-                        "result_text": row[2],
-                    }
-                )
-            elif name == "数据有效性 Gate":
+            if name == "数据有效性 Gate":
                 items.append(
                     {
                         "id": gate_id,
@@ -259,14 +259,13 @@ def parse_gates(lines: list[str]) -> tuple[str, list[dict[str, Any]], str]:
                         "yes_condition": row[2],
                     }
                 )
-        groups.append(
-            {
-                "group": name,
-                "headers": headers,
-                "items": items,
-                "source_markdown": exact_block(lines, heading_index, table_end),
-            }
-        )
+        group = {
+            "group": name,
+            "headers": headers,
+            "items": items,
+            "source_markdown": exact_block(lines, heading_index, table_end),
+        }
+        groups.append(group)
 
     last_table_start = first_matching_line(
         lines, r"^\|", group_heading_indices[-1] + 1, dimension_start
@@ -329,13 +328,16 @@ def build_rubric(markdown_path: Path) -> dict[str, Any]:
             item_id = id_match.group(1)
             scale = [part.strip() for part in row[2].split("/")]
             all_anchors = dict(zip(("0", "1", "2", "3", "N/A"), row[3:8]))
+            allows_na = bool(all_anchors["N/A"] and all_anchors["N/A"] != "—")
+            anchor_scores = [*scale, *( ["N/A"] if allows_na else [])]
             item = {
                 "id": item_id,
                 "name": row[1],
                 "starred": "★" in row[0],
                 "scale_label": row[2],
                 "scale": scale,
-                "anchors": {score: all_anchors[score] for score in [*scale, "N/A"]},
+                "allows_na": allows_na,
+                "anchors": {score: all_anchors[score] for score in anchor_scores},
                 "all_anchors": all_anchors,
                 "summary_row_markdown": "| " + " | ".join(row) + " |",
             }
@@ -386,8 +388,39 @@ def build_rubric(markdown_path: Path) -> dict[str, Any]:
         for item in dimension["items"]
         for case in item["cases"]
     )
+    for dimension in dimensions:
+        for item in dimension["items"]:
+            if item["scale"] != ["0", "1", "2", "3"]:
+                raise ValueError(
+                    f"{item['id']} must use the common continuous scale 0/1/2/3; "
+                    f"got {item['scale']}"
+                )
+            allowed_example_scores = set(item["scale"])
+            if item["allows_na"]:
+                allowed_example_scores.add("N/A")
+            example_scores = {
+                example["score"]
+                for case in item["cases"]
+                for example in case["examples"]
+            }
+            missing_numeric_examples = set(item["scale"]) - example_scores
+            if missing_numeric_examples:
+                raise ValueError(
+                    f"{item['id']} is missing examples for scores "
+                    f"{sorted(missing_numeric_examples)}"
+                )
+            for case in item["cases"]:
+                for example in case["examples"]:
+                    if example["score"] not in allowed_example_scores:
+                        raise ValueError(
+                            f"example score {example['score']!r} is not valid for "
+                            f"{item['id']} scale {item['scale']}"
+                        )
+    source_example_pattern = re.compile(
+        r"^\*\*(?:[0-3] 分[^*]*|N/A\s+·[^*]+)\*\*$"
+    )
     source_example_count = sum(
-        bool(re.match(r"^\*\*[0-3] 分", line)) for line in lines
+        bool(source_example_pattern.match(line)) for line in lines
     )
     if parsed_example_count != source_example_count:
         raise ValueError(
@@ -395,7 +428,7 @@ def build_rubric(markdown_path: Path) -> dict[str, Any]:
         )
 
     return {
-        "version": "roleplay-rubric-v0.2",
+        "version": "roleplay-rubric-v0.18",
         "title": lines[0].removeprefix("# "),
         "intro": nonempty_text(lines, 1, score_heading),
         "source_filename": markdown_path.name,

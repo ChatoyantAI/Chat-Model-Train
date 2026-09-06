@@ -17,7 +17,11 @@ async function api(path, options = {}) {
     ...options,
   });
   let payload = null;
-  try { payload = await response.json(); } catch (_) { payload = {}; }
+  try {
+    payload = await response.json();
+  } catch (_) {
+    payload = {};
+  }
   if (!response.ok) {
     throw new Error(payload.detail || `请求失败（${response.status}）`);
   }
@@ -39,8 +43,11 @@ function setDirty(value) {
 }
 
 function updateProgress(progress) {
-  const percent = progress.total ? (progress.submitted / progress.total) * 100 : 0;
-  el("progress-text").textContent = `已提交 ${progress.submitted} / ${progress.total}`;
+  const percent = progress.total
+    ? (progress.submitted / progress.total) * 100
+    : 0;
+  el("progress-text").textContent =
+    `已提交 ${progress.submitted} / ${progress.total}`;
   el("progress-fill").style.width = `${percent}%`;
 }
 
@@ -87,6 +94,118 @@ function appendText(parent, className, text, tag = "p") {
   return node;
 }
 
+function inferContentLanguage(text) {
+  const value = String(text || "");
+  const latinCount = (value.match(/[A-Za-z]/g) || []).length;
+  const hanCount = (value.match(/[\u3400-\u9fff]/g) || []).length;
+  const kanaCount = (value.match(/[\u3040-\u30ff]/g) || []).length;
+  if (kanaCount > 0 && kanaCount >= hanCount / 3) return "ja";
+  if (latinCount > hanCount * 2) return "en";
+  if (hanCount > 0) return "zh-CN";
+  return "";
+}
+
+function setTranslatableText(element, text) {
+  const value = String(text || "");
+  element.textContent = value;
+  element.setAttribute("translate", "yes");
+  const language = inferContentLanguage(value);
+  if (language) element.lang = language;
+  else element.removeAttribute("lang");
+}
+
+function appendInlineMarkdown(parent, text) {
+  const tokenPattern = /(\*\*[^*]+\*\*|\*[^*]+\*)/g;
+  let cursor = 0;
+  for (const match of text.matchAll(tokenPattern)) {
+    if (match.index > cursor) {
+      parent.append(document.createTextNode(text.slice(cursor, match.index)));
+    }
+    const strong = match[0].startsWith("**");
+    const node = document.createElement(strong ? "strong" : "em");
+    node.textContent = match[0].slice(strong ? 2 : 1, strong ? -2 : -1);
+    parent.append(node);
+    cursor = match.index + match[0].length;
+  }
+  if (cursor < text.length)
+    parent.append(document.createTextNode(text.slice(cursor)));
+}
+
+function renderGuidanceMarkdown(parent, markdown) {
+  const lines = markdown.split(/\r?\n/);
+  let index = 0;
+  while (index < lines.length) {
+    const line = lines[index].trim();
+    if (!line) {
+      index += 1;
+      continue;
+    }
+
+    const heading = line.match(/^\*\*(.+)\*\*$/);
+    if (heading) {
+      appendText(parent, "gate-guidance-heading", heading[1], "h5");
+      index += 1;
+      continue;
+    }
+
+    if (/^\d+\.\s+/.test(line)) {
+      const list = document.createElement("ol");
+      while (index < lines.length) {
+        const match = lines[index].trim().match(/^\d+\.\s+(.+)$/);
+        if (!match) break;
+        const item = document.createElement("li");
+        appendInlineMarkdown(item, match[1]);
+        list.append(item);
+        index += 1;
+      }
+      parent.append(list);
+      continue;
+    }
+
+    if (/^-\s+/.test(line)) {
+      const list = document.createElement("ul");
+      while (index < lines.length) {
+        const match = lines[index].trim().match(/^-\s+(.+)$/);
+        if (!match) break;
+        const item = document.createElement("li");
+        appendInlineMarkdown(item, match[1]);
+        list.append(item);
+        index += 1;
+      }
+      parent.append(list);
+      continue;
+    }
+
+    if (/^>/.test(line)) {
+      const quote = document.createElement("blockquote");
+      while (index < lines.length) {
+        const rawLine = lines[index].trim();
+        const match = rawLine.match(/^>\s?(.*)$/);
+        if (!match) {
+          if (!rawLine && /^>/.test((lines[index + 1] || "").trim())) {
+            index += 1;
+            continue;
+          }
+          break;
+        }
+        if (match[1]) {
+          const paragraph = document.createElement("p");
+          appendInlineMarkdown(paragraph, match[1]);
+          quote.append(paragraph);
+        }
+        index += 1;
+      }
+      parent.append(quote);
+      continue;
+    }
+
+    const paragraph = document.createElement("p");
+    appendInlineMarkdown(paragraph, line);
+    parent.append(paragraph);
+    index += 1;
+  }
+}
+
 function renderReferenceTable(parent, headers, rows) {
   const wrapper = document.createElement("div");
   wrapper.className = "reference-table-wrap";
@@ -118,8 +237,16 @@ function renderGuide() {
   const scoreHeading = document.createElement("h4");
   scoreHeading.textContent = "原子项统一评分";
   root.append(scoreHeading);
-  renderReferenceTable(root, state.rubric.score_headers, state.rubric.score_scale_rows);
-  renderReferenceTable(root, state.rubric.scale_usage_headers, state.rubric.scale_usage);
+  renderReferenceTable(
+    root,
+    state.rubric.score_headers,
+    state.rubric.score_scale_rows,
+  );
+  renderReferenceTable(
+    root,
+    state.rubric.scale_usage_headers,
+    state.rubric.scale_usage,
+  );
 
   const ruleHeading = document.createElement("h4");
   ruleHeading.textContent = "规则";
@@ -162,26 +289,50 @@ function renderGates() {
       question.textContent = `${item.id} · ${item.question}`;
       copy.append(question);
       if (item.yes_result || item.no_result) {
-        appendText(copy, "gate-condition", `是：${item.yes_result}；否：${item.no_result}`);
+        appendText(
+          copy,
+          "gate-condition",
+          `是：${item.yes_result}；否：${item.no_result}`,
+        );
       } else if (item.yes_condition) {
-        appendText(copy, "gate-condition", `记“是”的条件：${item.yes_condition}`);
+        appendText(
+          copy,
+          "gate-condition",
+          `记“是”的条件：${item.yes_condition}`,
+        );
       } else if (item.result_text) {
         appendText(copy, "gate-condition", `结果：${item.result_text}`);
       }
       const options = document.createElement("div");
       options.className = "gate-options";
-      const choices = item.type === "boolean"
-        ? [{ value: "false", label: "否" }, { value: "true", label: "是" }]
-        : item.options;
+      const choices =
+        item.type === "boolean"
+          ? [
+              { value: "false", label: "否" },
+              { value: "true", label: "是" },
+            ]
+          : item.options;
       choices.forEach((choice) => {
-        const defaultValue = item.type === "boolean" ? String(item.default) : item.default;
+        const defaultValue =
+          item.type === "boolean" ? String(item.default) : item.default;
         const defaultChoice = choice.value === defaultValue;
-        const radio = createRadio(`gate-${item.id}`, choice.value, choice.label, defaultChoice);
+        const radio = createRadio(
+          `gate-${item.id}`,
+          choice.value,
+          choice.label,
+          defaultChoice,
+        );
         radio.querySelector("input").dataset.gateId = item.id;
         options.append(radio);
       });
       row.append(copy, options);
       section.append(row);
+    }
+    if (group.guidance) {
+      const guidance = document.createElement("div");
+      guidance.className = "gate-guidance";
+      renderGuidanceMarkdown(guidance, group.guidance);
+      section.append(guidance);
     }
     root.append(section);
   }
@@ -241,12 +392,14 @@ function renderRubric() {
         notCounted.append(label, document.createTextNode(item.not_counted));
         guidance.append(notCounted);
       }
-      const na = document.createElement("p");
-      na.className = "labelled-guidance";
-      const naLabel = document.createElement("strong");
-      naLabel.textContent = "N/A：";
-      na.append(naLabel, document.createTextNode(item.na_condition));
-      guidance.append(na);
+      if (item.allows_na) {
+        const na = document.createElement("p");
+        na.className = "labelled-guidance";
+        const naLabel = document.createElement("strong");
+        naLabel.textContent = "N/A：";
+        na.append(naLabel, document.createTextNode(item.na_condition));
+        guidance.append(na);
+      }
 
       const standards = document.createElement("fieldset");
       standards.className = "score-standards";
@@ -254,7 +407,10 @@ function renderRubric() {
       const standardsLegend = document.createElement("legend");
       standardsLegend.textContent = "评分档位（先读标准，再选择一项）";
       standards.append(standardsLegend);
-      [...item.scale, "N/A"].forEach((score) => {
+      const availableScores = item.allows_na
+        ? [...item.scale, "N/A"]
+        : item.scale;
+      availableScores.forEach((score) => {
         const row = document.createElement("label");
         row.className = "score-standard";
         row.dataset.score = score;
@@ -281,7 +437,10 @@ function renderRubric() {
       const examples = document.createElement("details");
       examples.className = "examples";
       const exampleSummary = document.createElement("summary");
-      const exampleCount = item.cases.reduce((count, exampleCase) => count + exampleCase.examples.length, 0);
+      const exampleCount = item.cases.reduce(
+        (count, exampleCase) => count + exampleCase.examples.length,
+        0,
+      );
       exampleSummary.textContent = `查看完整案例（${item.cases.length} 组，${exampleCount} 条评分回复）`;
       examples.append(exampleSummary);
       item.cases.forEach((exampleCase) => {
@@ -299,13 +458,16 @@ function renderRubric() {
         grid.className = "example-grid";
         exampleCase.examples.forEach((example) => {
           const cell = document.createElement("article");
-          cell.className = `example-cell example-score-${example.score}`;
+          const scoreClass = String(example.score)
+            .replace(/[^a-zA-Z0-9_-]/g, "-")
+            .toLowerCase();
+          cell.className = `example-cell example-score-${scoreClass}`;
           const scoreLabel = document.createElement("div");
           scoreLabel.className = "example-score";
           scoreLabel.textContent = example.label;
-          const reply = document.createElement("pre");
+          const reply = document.createElement("div");
           reply.className = "example-reply";
-          reply.textContent = example.reply;
+          setTranslatableText(reply, example.reply);
           const explanation = document.createElement("p");
           explanation.className = "example-explanation";
           explanation.textContent = example.explanation;
@@ -321,23 +483,28 @@ function renderRubric() {
     root.append(details);
   });
 
-  document.querySelectorAll("input[type=radio], textarea").forEach((control) => {
-    control.addEventListener("change", () => {
-      setDirty(true);
-      if (control.dataset.itemId) updateAnchor(control.dataset.itemId);
-      updateScoreCounter();
-    });
-    if (control.tagName === "TEXTAREA") {
-      control.addEventListener("input", () => {
+  document
+    .querySelectorAll("input[type=radio], textarea")
+    .forEach((control) => {
+      control.addEventListener("change", () => {
         setDirty(true);
-        if (control.dataset.evidenceFor) updateAnchor(control.dataset.evidenceFor);
+        if (control.dataset.itemId) updateAnchor(control.dataset.itemId);
+        updateScoreCounter();
       });
-    }
-  });
+      if (control.tagName === "TEXTAREA") {
+        control.addEventListener("input", () => {
+          setDirty(true);
+          if (control.dataset.evidenceFor)
+            updateAnchor(control.dataset.evidenceFor);
+        });
+      }
+    });
 }
 
 function selectedScore(itemId) {
-  const selected = document.querySelector(`input[name="score-${itemId}"]:checked`);
+  const selected = document.querySelector(
+    `input[name="score-${itemId}"]:checked`,
+  );
   return selected ? selected.value : null;
 }
 
@@ -353,16 +520,23 @@ function updateAnchor(itemId) {
 }
 
 function updateScoreCounter() {
-  const total = state.rubric.dimensions.reduce((n, dimension) => n + dimension.items.length, 0);
+  const total = state.rubric.dimensions.reduce(
+    (n, dimension) => n + dimension.items.length,
+    0,
+  );
   const completed = state.rubric.dimensions.reduce(
-    (n, dimension) => n + dimension.items.filter((item) => selectedScore(item.id) !== null).length,
+    (n, dimension) =>
+      n +
+      dimension.items.filter((item) => selectedScore(item.id) !== null).length,
     0,
   );
   el("score-counter").textContent = `${completed} / ${total}`;
 }
 
 function resetForm() {
-  document.querySelectorAll('input[name^="score-"]').forEach((input) => { input.checked = false; });
+  document.querySelectorAll('input[name^="score-"]').forEach((input) => {
+    input.checked = false;
+  });
   document.querySelectorAll(".evidence").forEach((textarea) => {
     textarea.value = "";
     textarea.classList.remove("required-empty");
@@ -370,7 +544,8 @@ function resetForm() {
   const gateDefaults = {};
   state.rubric.gates.forEach((group) => {
     group.items.forEach((item) => {
-      gateDefaults[item.id] = item.type === "boolean" ? String(item.default) : item.default;
+      gateDefaults[item.id] =
+        item.type === "boolean" ? String(item.default) : item.default;
     });
   });
   document.querySelectorAll('input[name^="gate-"]').forEach((input) => {
@@ -378,7 +553,9 @@ function resetForm() {
   });
   el("gate-notes").value = "";
   el("overall-notes").value = "";
-  document.querySelectorAll(".score-standard.selected").forEach((row) => row.classList.remove("selected"));
+  document
+    .querySelectorAll(".score-standard.selected")
+    .forEach((row) => row.classList.remove("selected"));
   updateScoreCounter();
 }
 
@@ -386,11 +563,15 @@ function applyAnnotation(annotation) {
   if (!annotation) return;
   for (const [gateId, value] of Object.entries(annotation.gates || {})) {
     const stringValue = typeof value === "boolean" ? String(value) : value;
-    const input = document.querySelector(`input[name="gate-${gateId}"][value="${CSS.escape(stringValue)}"]`);
+    const input = document.querySelector(
+      `input[name="gate-${gateId}"][value="${CSS.escape(stringValue)}"]`,
+    );
     if (input) input.checked = true;
   }
   for (const [itemId, record] of Object.entries(annotation.scores || {})) {
-    const input = document.querySelector(`input[name="score-${itemId}"][value="${CSS.escape(String(record.value))}"]`);
+    const input = document.querySelector(
+      `input[name="score-${itemId}"][value="${CSS.escape(String(record.value))}"]`,
+    );
     if (input) input.checked = true;
     const evidence = document.querySelector(`[data-evidence-for="${itemId}"]`);
     if (evidence) evidence.value = record.evidence || "";
@@ -398,9 +579,10 @@ function applyAnnotation(annotation) {
   }
   el("gate-notes").value = annotation.gate_notes || "";
   el("overall-notes").value = annotation.overall_notes || "";
-  el("save-state").textContent = annotation.status === "submitted"
-    ? `已提交 · ${new Date(annotation.updated_at).toLocaleString()}`
-    : `草稿 · ${new Date(annotation.updated_at).toLocaleString()}`;
+  el("save-state").textContent =
+    annotation.status === "submitted"
+      ? `已提交 · ${new Date(annotation.updated_at).toLocaleString()}`
+      : `草稿 · ${new Date(annotation.updated_at).toLocaleString()}`;
   updateScoreCounter();
 }
 
@@ -419,8 +601,9 @@ function renderMessages(messages) {
     const label = document.createElement("div");
     label.className = "message-label";
     label.textContent = labels[message.display_role] || message.display_role;
-    const content = document.createElement("pre");
-    content.textContent = message.content;
+    const content = document.createElement("div");
+    content.className = "message-content";
+    setTranslatableText(content, message.content);
     card.append(label, content);
     root.append(card);
   }
@@ -434,7 +617,7 @@ async function loadSample(seq) {
     state.sample = sample;
     resetForm();
     renderMessages(sample.messages);
-    el("candidate-content").textContent = sample.candidate.content;
+    setTranslatableText(el("candidate-content"), sample.candidate.content);
     el("jump-input").value = sample.seq;
     el("jump-input").max = sample.total;
     el("sample-total").textContent = `/ ${sample.total}`;
@@ -472,7 +655,9 @@ function collectScores() {
       if (score === null) continue;
       scores[item.id] = {
         value: score === "N/A" ? "N/A" : Number(score),
-        evidence: document.querySelector(`[data-evidence-for="${item.id}"]`).value.trim(),
+        evidence: document
+          .querySelector(`[data-evidence-for="${item.id}"]`)
+          .value.trim(),
       };
     }
   }
@@ -488,7 +673,8 @@ function validateSubmission(scores) {
       }
     }
   }
-  if (missing.length) throw new Error(`还有 ${missing.length} 项未评分：${missing.join("、")}`);
+  if (missing.length)
+    throw new Error(`还有 ${missing.length} 项未评分：${missing.join("、")}`);
 }
 
 async function save(status) {
@@ -498,6 +684,8 @@ async function save(status) {
   const payload = {
     seq: state.sample.seq,
     status,
+    rubric_version: state.rubric.version,
+    rubric_sha256: state.rubric.source_sha256,
     gates: collectGates(),
     scores,
     gate_notes: el("gate-notes").value,
@@ -512,9 +700,11 @@ async function save(status) {
     });
     updateProgress(result.progress);
     setDirty(false);
-    el("save-state").textContent = status === "submitted" ? "已提交" : "草稿已保存";
+    el("save-state").textContent =
+      status === "submitted" ? "已提交" : "草稿已保存";
     toast(status === "submitted" ? "提交成功" : "草稿已保存");
-    if (status === "submitted" && result.next_seq) await loadSample(result.next_seq);
+    if (status === "submitted" && result.next_seq)
+      await loadSample(result.next_seq);
   } catch (error) {
     toast(error.message, true);
   } finally {
@@ -524,7 +714,9 @@ async function save(status) {
 }
 
 function canNavigate() {
-  return !state.dirty || window.confirm("当前修改尚未保存，确定离开这条样本吗？");
+  return (
+    !state.dirty || window.confirm("当前修改尚未保存，确定离开这条样本吗？")
+  );
 }
 
 document.addEventListener("DOMContentLoaded", async () => {

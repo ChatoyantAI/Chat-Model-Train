@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>角色扮演单样本过滤 V2</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <section id="login-view" class="login-view">
+      <form id="login-form" class="login-card">
+        <div class="eyebrow">ROLEPLAY DATA FILTER</div>
+        <h1>单样本过滤 V2</h1>
+        <p>
+          按完整角色扮演量表给单条候选回复评分，并保留可用的评分 Token
+          概率。结果与旧版平台完全隔离。
+        </p>
+        <label for="username">用户名</label>
+        <input
+          id="username"
+          name="username"
+          autocomplete="username"
+          maxlength="40"
+          required
+        />
+        <button type="submit" class="primary">进入 V2</button>
+        <p id="login-error" class="error" role="alert"></p>
+      </form>
+    </section>
+
+    <div id="app-view" class="app-view hidden">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow">
+            SINGLE-SAMPLE FILTER <span class="version-badge">V2</span>
+          </div>
+          <h1>角色扮演训练质量审核</h1>
+        </div>
+        <div class="topbar-actions">
+          <span id="progress-text" class="progress-pill"></span>
+          <span id="user-label"></span>
+          <a href="/rubric" target="_blank" rel="noopener" class="button-link"
+            >完整标准与案例</a
+          >
+          <button id="prompt-button" type="button">查看 LLM 请求</button>
+          <button id="logout-button" type="button">退出</button>
+        </div>
+      </header>
+
+      <nav class="sample-nav" aria-label="样本导航">
+        <button id="prev-button" type="button">上一条</button>
+        <label
+          >样本 <input id="jump-input" type="number" min="1" /><span
+            id="sample-total"
+          ></span
+        ></label>
+        <button id="jump-button" type="button">跳转</button>
+        <button id="next-button" type="button">下一条</button>
+        <span id="trigger-badge" class="muted"></span>
+        <span id="save-state" class="save-state">尚未保存</span>
+      </nav>
+
+      <main class="workspace">
+        <section class="panel context-panel" aria-label="待审核样本">
+          <div class="panel-heading">
+            <div>
+              <div class="eyebrow">CONTEXT</div>
+              <h2>上下文与候选回复</h2>
+            </div>
+          </div>
+          <div id="messages" class="messages" translate="yes"></div>
+          <article class="candidate">
+            <div class="message-label">ASSISTANT CANDIDATE · 只审核这一条</div>
+            <div
+              id="candidate-content"
+              class="message-content"
+              translate="yes"
+            ></div>
+          </article>
+        </section>
+
+        <section class="panel review-panel" aria-label="V2 审核表">
+          <div class="panel-heading">
+            <div>
+              <div class="eyebrow">PROBABILISTIC SCORE</div>
+              <h2>单样本质量评分</h2>
+            </div>
+            <div class="score-headline">
+              <span id="quality-score" class="score-pill">—</span
+              ><span id="answer-count" class="count-badge">0 / 20</span>
+            </div>
+          </div>
+
+          <div class="principle">
+            <strong>完整量表评分：</strong
+            >0＝明显失败，1＝存在明确缺陷，2＝完整且达到高质量要求，3＝先达到 2
+            分且该能力是本轮突出优点。N/A
+            只表示本轮没有检验机会。人工选择保存原始档位；LLM 另外使用评分 Token
+            概率计算连续期望分。
+          </div>
+
+          <section class="form-section">
+            <h3>第一步 · 硬错误 Gate</h3>
+            <p class="section-note">
+              选择“发现错误”才表示 Gate 触发；“没有”表示该错误不存在。
+            </p>
+            <div id="gate-list" class="gate-list"></div>
+            <div id="gate-warning" class="gate-warning hidden">
+              已发现硬错误。提交后将进入独立 Gate 复核；原子项可以暂不填写。
+            </div>
+          </section>
+
+          <section id="item-section" class="form-section">
+            <h3>第二步 · 20 项原子评分</h3>
+            <p class="section-note">
+              每项只显示该项合法档位；不同项目的最高分可能是 2 或
+              3。档位说明应在选择前阅读。
+            </p>
+            <div id="item-groups"></div>
+          </section>
+
+          <section class="form-section llm-section">
+            <div class="section-title-row">
+              <div>
+                <h3>LLM 主审核</h3>
+                <p class="section-note">
+                  先用 temperature=0 做硬 Gate；通过后用 temperature=1
+                  输出固定单字符分数。渠道支持时，将合法评分 Token 的 logprobs
+                  归一化成分布与连续期望分。
+                </p>
+              </div>
+              <span class="temperature">Gate 0 · Score 1</span>
+            </div>
+            <div class="llm-controls">
+              <select id="primary-model" aria-label="主审核模型"></select>
+              <button id="run-primary" type="button" class="primary">
+                审核当前样本
+              </button>
+            </div>
+            <div id="llm-status" class="muted"></div>
+            <div id="llm-result" class="llm-result hidden"></div>
+            <div id="verify-controls" class="verify-controls hidden">
+              <label for="verify-model">独立复核模型</label>
+              <select id="verify-model"></select>
+              <button id="run-verify" type="button">只复核争议项</button>
+            </div>
+          </section>
+
+          <section class="form-section">
+            <label for="notes"><strong>整体备注（可选）</strong></label>
+            <textarea
+              id="notes"
+              rows="3"
+              placeholder="只写无法落入某个原子项的补充说明"
+            ></textarea>
+          </section>
+
+          <footer class="form-actions">
+            <button id="save-button" type="button">保存草稿</button>
+            <button id="submit-button" type="button" class="primary">
+              提交并进入下一条
+            </button>
+          </footer>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="prompt-dialog" class="prompt-dialog">
+      <form method="dialog" class="dialog-heading">
+        <div>
+          <div class="eyebrow">REQUEST PREVIEW</div>
+          <h2>实际发送给 LLM 的内容</h2>
+        </div>
+        <button value="close">关闭</button>
+      </form>
+      <p>
+        Gate
+        与评分是两次独立请求。这里显示经过规范化的上下文、完整审核文案和严格
+        JSON Schema，不包含服务器 Key。
+      </p>
+      <div class="preview-grid">
+        <section>
+          <h3>Gate 请求 · temperature=0</h3>
+          <pre id="preview-gate"></pre>
+        </section>
+        <section>
+          <h3>评分请求 · temperature=1</h3>
+          <pre id="preview-score"></pre>
+        </section>
+        <section>
+          <h3>两个输出 Schema</h3>
+          <pre id="preview-schema"></pre>
+        </section>
+      </div>
+    </dialog>
+
+    <div id="toast" class="toast hidden" role="status"></div>
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>

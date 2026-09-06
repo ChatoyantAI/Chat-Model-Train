@@ -11,3 +11,12 @@
 - 随机测试设置种子，并在失败信息中输出复现条件。
 
 每个模块 README 必须写出实际测试命令和验收门槛。
+
+## 评估模块
+
+```bash
+python -m pip install -r src/evaluation/roleplay_annotation_platform/requirements.txt
+python -m unittest discover -s tests/evaluation -v
+```
+
+覆盖 Elo、上下文还原、人工标注、LLM 请求 / 校验 / 重试、Battle 权重、概率评分、会话队列与排名、角色配额和 target 前缀。HTTP 使用 mock，临时数据均为虚构样例；无 GPU、生产数据或 API Key 要求。同步测试核对完整规则文档与生成 JSON，不能只修改其中一份。
