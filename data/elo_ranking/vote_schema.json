@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/chat-model-train/elo-ranking-vote.schema.json",
+  "title": "Normalized ELO campaign vote",
+  "description": "One valid user vote after UI position has been resolved and discarded.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "comparison_id",
+    "user_id",
+    "campaign_id",
+    "selected_at",
+    "winner_model",
+    "loser_model"
+  ],
+  "properties": {
+    "comparison_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "user_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "campaign_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "selected_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "winner_model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "loser_model": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

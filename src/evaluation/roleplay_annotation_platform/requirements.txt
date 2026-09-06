@@ -1,0 +1,6 @@
+fastapi>=0.115,<1
+httpx>=0.27,<1
+jsonschema>=4.23,<5
+numpy>=2,<3
+pyarrow>=17,<26
+uvicorn[standard]>=0.30,<1

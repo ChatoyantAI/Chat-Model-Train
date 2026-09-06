@@ -8,6 +8,15 @@
 *.yml text eol=lf
 *.json text eol=lf
 *.toml text eol=lf
+*.js text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.service text eol=lf
+*.example text eol=lf
+requirements*.txt text eol=lf
+
+# Frozen production prompt resources preserve source whitespace byte-for-byte.
+src/evaluation/roleplay_judge_dataset/templates/*.txt text eol=lf whitespace=-blank-at-eol,-blank-at-eof
 
 # Native Windows entrypoints retain CRLF.
 *.bat text eol=crlf

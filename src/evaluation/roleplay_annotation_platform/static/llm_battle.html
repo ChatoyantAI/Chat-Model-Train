@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>LLM Judge Battle · 角色回复评分</title>
+    <link rel="stylesheet" href="/static/style.css?v=20260831-1" />
+    <link rel="stylesheet" href="/static/llm_judge.css?v=20260902-2" />
+    <link rel="stylesheet" href="/static/llm_battle.css?v=20260902-2" />
+  </head>
+  <body>
+    <div id="judge-battle-view" class="hidden">
+      <header class="topbar judge-battle-topbar">
+        <div>
+          <div class="eyebrow">PAIRWISE LLM JUDGE</div>
+          <strong>LLM Judge Battle</strong>
+        </div>
+        <div class="llm-rule-identity">
+          <span id="judge-battle-rubric-version">规则 —</span>
+          <code id="judge-battle-rubric-hash">—</code>
+        </div>
+        <div class="user-block">
+          <a href="/llm-judge" class="ghost small mode-link">单模型 Judge</a>
+          <a href="/llm-compare" class="ghost small mode-link">多模型对齐</a>
+          <a href="/battle" class="ghost small mode-link">投票回放</a>
+          <a href="/" class="ghost small mode-link">人工标注</a>
+          <span id="judge-battle-current-user"></span>
+        </div>
+      </header>
+
+      <aside id="judge-battle-disabled" class="llm-disabled hidden"></aside>
+
+      <main class="judge-battle-workspace">
+        <section class="judge-battle-sidebar">
+          <article class="llm-card">
+            <div class="eyebrow">NEW BATTLE JOB</div>
+            <h2>评分原始投票对</h2>
+            <p class="llm-help">
+              每一组的 A、B 使用同一个 Judge
+              模型和同一套规则分别评分。两边都独立执行 Gate，通过后再评 20 项。
+            </p>
+
+            <div class="model-catalog-heading">
+              <span id="judge-battle-model-catalog" class="fine-print"
+                >模型目录 —</span
+              >
+              <button
+                id="judge-battle-refresh-models"
+                class="ghost tiny"
+                type="button"
+              >
+                刷新目录
+              </button>
+            </div>
+            <label
+              >搜索 Judge 模型
+              <input
+                id="judge-battle-model-search"
+                type="search"
+                autocomplete="off"
+                placeholder="输入模型名称或 ID"
+              />
+            </label>
+            <label
+              >Judge 模型
+              <select id="judge-battle-model"></select>
+            </label>
+            <p
+              id="judge-battle-provider-route"
+              class="provider-route fine-print"
+            ></p>
+
+            <label
+              >Battle 范围
+              <select id="judge-battle-scope">
+                <option value="current">单组 Battle</option>
+                <option value="range">指定组号范围</option>
+                <option value="random">随机抽取</option>
+                <option value="all">全部投票组</option>
+              </select>
+            </label>
+            <div id="judge-battle-scope-current" class="scope-fields">
+              <label
+                >Battle 组号
+                <input id="judge-battle-pair" type="number" min="1" value="1" />
+              </label>
+            </div>
+            <div
+              id="judge-battle-scope-range"
+              class="scope-fields hidden two-fields"
+            >
+              <label
+                >开始组号
+                <input
+                  id="judge-battle-start"
+                  type="number"
+                  min="1"
+                  value="1"
+                />
+              </label>
+              <label
+                >结束组号
+                <input id="judge-battle-end" type="number" min="1" value="10" />
+              </label>
+            </div>
+            <div id="judge-battle-scope-random" class="scope-fields hidden">
+              <label
+                >随机组数
+                <input
+                  id="judge-battle-random-count"
+                  type="number"
+                  min="1"
+                  value="10"
+                />
+              </label>
+            </div>
+
+            <label
+              >任务预算上限（美元）
+              <input
+                id="judge-battle-budget"
+                type="number"
+                min="0.01"
+                step="0.01"
+                value="5.00"
+              />
+            </label>
+            <p id="judge-battle-cost-hint" class="fine-print">
+              每组包含两个独立候选评分。
+            </p>
+            <button
+              id="judge-battle-create"
+              class="primary judge-battle-create"
+            >
+              开始 Battle Judge
+            </button>
+            <p id="judge-battle-limits" class="fine-print"></p>
+          </article>
+
+          <article class="llm-card">
+            <div class="llm-section-heading">
+              <div>
+                <div class="eyebrow">HISTORY</div>
+                <h2>Battle 任务</h2>
+              </div>
+              <button id="judge-battle-refresh" class="ghost small">
+                刷新
+              </button>
+            </div>
+            <div id="judge-battle-history" class="llm-jobs"></div>
+          </article>
+        </section>
+
+        <section class="judge-battle-main">
+          <article id="judge-battle-empty" class="llm-card llm-empty">
+            <h2>选择或创建一个 Judge Battle</h2>
+            <p>
+              A、B 保持原始线上投票配对，但评分过程与普通 LLM Judge 完全一致。
+            </p>
+            <p class="llm-help">
+              完成后可查看线上用户选择、逐项分数差、理由、证据、渠道和请求内容。
+            </p>
+          </article>
+
+          <div id="judge-battle-detail" class="hidden">
+            <article class="llm-card">
+              <div class="llm-section-heading">
+                <div>
+                  <div class="eyebrow">JOB STATUS</div>
+                  <h2 id="judge-battle-title">—</h2>
+                </div>
+                <span id="judge-battle-status" class="job-status"></span>
+              </div>
+              <div id="judge-battle-meta" class="job-meta"></div>
+              <div class="job-progress-track">
+                <div id="judge-battle-progress-fill"></div>
+              </div>
+              <div
+                id="judge-battle-progress-text"
+                class="job-progress-text"
+              ></div>
+              <div class="job-controls">
+                <button id="judge-battle-pause" class="ghost">暂停</button>
+                <button id="judge-battle-resume" class="ghost">继续</button>
+                <button id="judge-battle-cancel" class="ghost danger-button">
+                  停止剩余任务
+                </button>
+              </div>
+            </article>
+
+            <article class="llm-card">
+              <div class="llm-section-heading">
+                <div>
+                  <div class="eyebrow">LEARNED SCORE WEIGHTS</div>
+                  <h2>可解释评分权重</h2>
+                </div>
+                <button
+                  id="judge-battle-fit-weights"
+                  class="primary small"
+                  type="button"
+                >
+                  拟合权重
+                </button>
+              </div>
+              <p class="llm-help">
+                使用本任务的原始线上 A/B 选择，学习维度和原子项权重。Token
+                logprobs 不参与拟合；评分对与单边 Gate
+                分开报告五折结果。折外指标未过候选门槛时，权重只用于诊断，不得直接过滤数据。
+              </p>
+              <div
+                id="judge-battle-weight-fit-empty"
+                class="judge-battle-fit-empty"
+              >
+                尚未拟合。候选全部结束后可以开始。
+              </div>
+              <div id="judge-battle-weight-fit-report" class="hidden">
+                <div id="judge-battle-weight-fit-warnings"></div>
+                <div
+                  id="judge-battle-weight-fit-metrics"
+                  class="judge-battle-fit-metrics"
+                ></div>
+                <h3>维度权重</h3>
+                <div
+                  id="judge-battle-dimension-weights"
+                  class="llm-table-wrap"
+                ></div>
+                <h3>分差刻度与 Gate</h3>
+                <div
+                  id="judge-battle-confidence-weights"
+                  class="judge-battle-fit-parameters"
+                ></div>
+                <details class="judge-battle-weight-details">
+                  <summary>查看全部原子项权重</summary>
+                  <div
+                    id="judge-battle-item-weights"
+                    class="llm-table-wrap"
+                  ></div>
+                </details>
+                <details class="judge-battle-weight-details">
+                  <summary>查看拟合口径与 N/A 处理</summary>
+                  <div
+                    id="judge-battle-fit-method"
+                    class="judge-battle-fit-method"
+                  ></div>
+                </details>
+              </div>
+            </article>
+
+            <article class="llm-card">
+              <div class="llm-section-heading">
+                <div>
+                  <div class="eyebrow">PAIRS</div>
+                  <h2>投票组进度</h2>
+                </div>
+                <span class="llm-help">每组包含 A、B 两个候选</span>
+              </div>
+              <div class="llm-table-wrap judge-battle-pair-table-wrap">
+                <table class="llm-table">
+                  <thead>
+                    <tr>
+                      <th>位置</th>
+                      <th>投票组</th>
+                      <th>A</th>
+                      <th>B</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="judge-battle-pairs"></tbody>
+                </table>
+              </div>
+              <div class="judge-battle-pagination">
+                <button id="judge-battle-page-prev" class="ghost small">
+                  上一页
+                </button>
+                <span id="judge-battle-page-label" class="fine-print">—</span>
+                <button id="judge-battle-page-next" class="ghost small">
+                  下一页
+                </button>
+              </div>
+            </article>
+
+            <article id="judge-battle-pair-detail" class="llm-card hidden">
+              <div class="llm-section-heading">
+                <div>
+                  <div class="eyebrow">PAIR RESULT</div>
+                  <h2 id="judge-battle-pair-title">Battle —</h2>
+                </div>
+                <div class="judge-battle-pair-actions">
+                  <span id="judge-battle-online-choice" class="badge"></span>
+                  <button id="judge-battle-reveal-models" class="ghost small">
+                    查看原模型
+                  </button>
+                </div>
+              </div>
+              <p
+                id="judge-battle-context-warning"
+                class="judgment-error hidden"
+              >
+                这一对候选的上下文不完全一致；Judge
+                实际分别使用各自保存的上下文。
+              </p>
+              <div id="judge-battle-winner" class="judge-battle-winner"></div>
+              <div
+                id="judge-battle-learned-comparison"
+                class="judge-battle-learned-comparison hidden"
+              ></div>
+
+              <details class="compare-context-details">
+                <summary>查看共同上下文</summary>
+                <div id="judge-battle-context" class="inspector-context"></div>
+              </details>
+
+              <div
+                id="judge-battle-candidates"
+                class="judge-battle-candidates"
+              ></div>
+
+              <section class="judge-battle-result-section">
+                <h3>Gate 对比</h3>
+                <div id="judge-battle-gates" class="llm-table-wrap"></div>
+              </section>
+              <section class="judge-battle-result-section">
+                <h3>维度汇总</h3>
+                <p class="llm-help">
+                  只汇总 A、B 都有数值分数的原子项，N/A 不参与差值。
+                </p>
+                <div id="judge-battle-dimensions" class="llm-table-wrap"></div>
+              </section>
+              <section class="judge-battle-result-section">
+                <h3>20 项逐项对比</h3>
+                <div id="judge-battle-scores"></div>
+              </section>
+            </article>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <dialog
+      id="judge-battle-request-dialog"
+      class="schema-dialog inspector-dialog"
+    >
+      <div class="llm-section-heading">
+        <div>
+          <div class="eyebrow">REQUEST INSPECTOR</div>
+          <h2 id="judge-battle-request-title">候选请求</h2>
+        </div>
+        <button id="judge-battle-request-close" class="ghost small">
+          关闭
+        </button>
+      </div>
+      <p class="llm-help">
+        展示的请求由普通 Judge 使用的同一个构造器生成；服务器 Key 已隐藏。
+      </p>
+      <div id="judge-battle-request-context" class="inspector-context"></div>
+      <details class="judgment-raw">
+        <summary>查看完整两阶段请求 JSON</summary>
+        <pre id="judge-battle-request-json"></pre>
+      </details>
+    </dialog>
+
+    <div id="toast" class="toast hidden" role="status"></div>
+    <script src="/static/llm_battle.js?v=20260903-2" defer></script>
+  </body>
+</html>

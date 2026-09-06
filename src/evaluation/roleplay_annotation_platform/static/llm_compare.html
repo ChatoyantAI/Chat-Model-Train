@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>多模型对齐 · 角色回复评分</title>
+    <link rel="stylesheet" href="/static/style.css?v=20260830-5" />
+    <link rel="stylesheet" href="/static/llm_judge.css?v=20260830-5" />
+    <link rel="stylesheet" href="/static/llm_compare.css?v=20260902-6" />
+  </head>
+  <body>
+    <div id="compare-view" class="hidden">
+      <header class="topbar compare-topbar">
+        <div>
+          <div class="eyebrow">MULTI-MODEL ALIGNMENT</div>
+          <strong>多模型评分对齐</strong>
+        </div>
+        <div class="llm-rule-identity">
+          <span id="compare-rubric-version">规则 —</span>
+          <code id="compare-rubric-hash">—</code>
+        </div>
+        <div class="user-block">
+          <a href="/llm-judge" class="ghost small mode-link">单模型 Judge</a>
+          <a href="/llm-battle" class="ghost small mode-link">Judge Battle</a>
+          <a href="/" class="ghost small mode-link">人工标注</a>
+          <a href="/battle" class="ghost small mode-link">Battle</a>
+          <span id="compare-current-user"></span>
+        </div>
+      </header>
+
+      <aside id="compare-disabled" class="llm-disabled hidden"></aside>
+
+      <main class="compare-workspace">
+        <section class="compare-sidebar">
+          <article class="llm-card">
+            <div class="eyebrow">NEW ALIGNMENT</div>
+            <h2>创建同题比较</h2>
+            <p class="llm-help">
+              所选模型使用完全相同的样本序列和评分规则。后台任务独立运行，比较页只聚合已经校验并保存的结果。
+            </p>
+
+            <div class="model-catalog-heading">
+              <span id="compare-model-catalog" class="fine-print"
+                >模型目录 —</span
+              >
+              <button
+                id="compare-refresh-models"
+                class="ghost tiny"
+                type="button"
+              >
+                刷新目录
+              </button>
+            </div>
+            <label
+              >搜索模型
+              <input
+                id="compare-model-search"
+                type="search"
+                autocomplete="off"
+                placeholder="输入模型名称或 ID"
+              />
+            </label>
+            <div class="compare-picker-heading">
+              <strong>选择模型</strong>
+              <span id="compare-selected-count" class="fine-print">0 个</span>
+            </div>
+            <div id="compare-model-picker" class="compare-model-picker"></div>
+            <p
+              id="compare-provider-route"
+              class="provider-route fine-print"
+            ></p>
+
+            <label
+              >样本范围
+              <select id="compare-scope">
+                <option value="current">单条样本</option>
+                <option value="range">指定范围</option>
+                <option value="random">随机抽取</option>
+              </select>
+            </label>
+            <div id="compare-scope-current" class="scope-fields">
+              <label
+                >样本序号
+                <input id="compare-seq" type="number" min="1" value="1" />
+              </label>
+            </div>
+            <div
+              id="compare-scope-range"
+              class="scope-fields hidden two-fields"
+            >
+              <label
+                >开始序号
+                <input id="compare-start" type="number" min="1" value="1" />
+              </label>
+              <label
+                >结束序号
+                <input id="compare-end" type="number" min="1" value="10" />
+              </label>
+            </div>
+            <div id="compare-scope-random" class="scope-fields hidden">
+              <label
+                >随机数量
+                <input
+                  id="compare-random-count"
+                  type="number"
+                  min="1"
+                  value="10"
+                />
+              </label>
+            </div>
+
+            <label
+              >每个模型预算上限（美元）
+              <input
+                id="compare-budget"
+                type="number"
+                min="0.01"
+                step="0.01"
+                value="2.00"
+              />
+            </label>
+            <p id="compare-budget-total" class="fine-print"></p>
+            <button id="compare-create" class="primary compare-create">
+              开始多模型比较
+            </button>
+            <p id="compare-limits" class="fine-print"></p>
+          </article>
+
+          <article class="llm-card">
+            <div class="llm-section-heading">
+              <div>
+                <div class="eyebrow">HISTORY</div>
+                <h2>比较任务</h2>
+              </div>
+              <button id="compare-refresh" class="ghost small">刷新</button>
+            </div>
+            <div id="compare-history" class="llm-jobs"></div>
+          </article>
+        </section>
+
+        <section class="compare-main">
+          <article id="compare-empty" class="llm-card llm-empty">
+            <h2>选择或创建一个多模型比较</h2>
+            <p>
+              这里比较的是同一样本、同一规则下的逐项评分，不计算会掩盖分歧的总分平均值。
+            </p>
+            <p class="llm-help">
+              N/A、Gate 淘汰、无效结果和未完成项都会单独显示。
+            </p>
+          </article>
+
+          <div id="compare-detail" class="hidden">
+            <article class="llm-card">
+              <div class="llm-section-heading">
+                <div>
+                  <div class="eyebrow">ALIGNMENT STATUS</div>
+                  <h2 id="compare-title">—</h2>
+                </div>
+                <span id="compare-status" class="job-status"></span>
+              </div>
+              <div id="compare-meta" class="job-meta"></div>
+              <div class="job-progress-track">
+                <div id="compare-progress-fill"></div>
+              </div>
+              <div id="compare-progress-text" class="job-progress-text"></div>
+              <div class="job-controls">
+                <button id="compare-pause" class="ghost">全部暂停</button>
+                <button id="compare-resume" class="ghost">全部继续</button>
+                <button id="compare-cancel" class="ghost danger-button">
+                  停止剩余任务
+                </button>
+              </div>
+              <div id="compare-model-jobs" class="compare-model-jobs"></div>
+            </article>
+
+            <article class="llm-card compare-agreement-scope">
+              <div class="eyebrow">ATOMIC SCORE AGREEMENT</div>
+              <h2>原子评分一致率</h2>
+              <p class="llm-help">
+                N/A 是有效判定，会参与所有一致率计算；N/A
+                与数字评分属于严重分歧。调用失败、未完成或没有评分是“缺失”，不是
+                N/A，只从对应单元排除，不影响其余有效模型互相比较。
+              </p>
+              <div class="compare-metric-legend" role="note">
+                <span
+                  ><strong>全体同档（严格）</strong
+                  >：同一单元中所有所选模型都有结果，并且给出完全相同的值；缺失单元不进入该指标分母。</span
+                >
+                <span
+                  ><strong>全体最大档差≤1（严格）</strong
+                  >：同一单元中所有所选模型都有结果，且最高与最低数字评分最多相差一档；全体都是同一个
+                  N/A 也计入，N/A 与数字混用不计入。</span
+                >
+                <span
+                  ><strong>两两同档</strong
+                  >：所有有效模型对中，分数完全相同的比例。</span
+                >
+                <span
+                  ><strong>相差≤1（含同档）</strong>：完全同档（包括
+                  N/A↔N/A），或两个数字只差一档；N/A 与数字不属于相邻。</span
+                >
+                <span
+                  ><strong>严重分歧</strong>：数字相差两档及以上，或一方
+                  N/A、另一方为数字。</span
+                >
+                <span
+                  ><strong>Token 概率修正距离</strong
+                  >：只在渠道返回该项全部合法档位（包括适用时的 N/A）的 logprobs
+                  时计算；先把档位距离归一化到
+                  0–1，再乘以双方所选分值概率的几何平均。只返回选中 Token
+                  或部分档位时记为不可用，页面同时保留同一子集的原始距离。</span
+                >
+              </div>
+              <div id="compare-atomic-kpis" class="compare-kpis"></div>
+              <h3>按维度</h3>
+              <div id="compare-dimensions" class="llm-table-wrap"></div>
+              <h3 id="compare-atomic-items-heading">按原子项</h3>
+              <div id="compare-atomic-items" class="llm-table-wrap"></div>
+              <h3>按模型对</h3>
+              <div id="compare-atomic-pairwise" class="llm-table-wrap"></div>
+            </article>
+
+            <article class="llm-card compare-agreement-scope">
+              <div class="eyebrow">GATE AGREEMENT</div>
+              <h2>Gate 一致率</h2>
+              <p class="llm-help">
+                Gate 与原子评分独立统计。某模型即使在第二阶段失败，只要 Gate
+                已通过校验，Gate 结果仍参与比较；没有 Gate
+                结果的模型只从该样本的两两比较中排除。严格全体同判只统计所有所选模型都有
+                Gate 结果的单元。
+              </p>
+              <div id="compare-gate-kpis" class="compare-kpis"></div>
+              <h3>Gate 模型两两一致率</h3>
+              <div id="compare-gate-pairwise" class="llm-table-wrap"></div>
+              <h3>按 Gate</h3>
+              <div id="compare-gate-items" class="llm-table-wrap"></div>
+            </article>
+
+            <article class="llm-card">
+              <div class="llm-section-heading">
+                <div>
+                  <div class="eyebrow">SAMPLES</div>
+                  <h2>分歧样本</h2>
+                </div>
+                <span class="llm-help"
+                  >点击样本查看各模型的分数、理由和证据</span
+                >
+              </div>
+              <div class="llm-table-wrap compare-sample-table-wrap">
+                <table class="llm-table">
+                  <thead>
+                    <tr>
+                      <th>位置</th>
+                      <th>样本</th>
+                      <th>原子参与</th>
+                      <th>Gate 参与</th>
+                      <th>原子可比较</th>
+                      <th>原子分歧</th>
+                      <th>Gate 可比较</th>
+                      <th>Gate 分歧</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="compare-samples"></tbody>
+                </table>
+              </div>
+            </article>
+
+            <article id="compare-sample-detail" class="llm-card hidden">
+              <div class="llm-section-heading">
+                <div>
+                  <div class="eyebrow">SAMPLE ALIGNMENT</div>
+                  <h2 id="compare-sample-title">样本 —</h2>
+                </div>
+                <div class="compare-sample-filters">
+                  <label
+                    >查看维度
+                    <select id="compare-score-dimension">
+                      <option value="all">全部维度</option>
+                    </select>
+                  </label>
+                  <label class="difference-filter"
+                    ><input
+                      id="compare-only-differences"
+                      type="checkbox"
+                      checked
+                    />
+                    只显示实际参与模型之间的分歧</label
+                  >
+                </div>
+              </div>
+              <details class="compare-context-details">
+                <summary>查看待评上下文与候选回复</summary>
+                <div id="compare-context" class="inspector-context"></div>
+              </details>
+              <div id="compare-sample-models" class="compare-model-jobs"></div>
+              <section class="compare-criterion-section">
+                <h3>Gate</h3>
+                <div id="compare-gate-detail"></div>
+              </section>
+              <section class="compare-criterion-section">
+                <h3 id="compare-score-detail-title">原子评分</h3>
+                <div
+                  id="compare-selected-dimension-kpis"
+                  class="compare-kpis compare-sample-kpis"
+                ></div>
+                <div
+                  id="compare-score-matrix"
+                  class="llm-table-wrap compare-score-matrix"
+                ></div>
+                <div id="compare-score-detail"></div>
+              </section>
+            </article>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="toast" class="toast hidden" role="status"></div>
+    <script src="/static/llm_compare.js?v=20260903-1" defer></script>
+  </body>
+</html>

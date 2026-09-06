@@ -6,6 +6,11 @@
 
 - [RESPONSIBILITIES.md](RESPONSIBILITIES.md)：模块负责人、备份负责人和维护边界；
 - [REPOSITORY_STRUCTURE.md](REPOSITORY_STRUCTURE.md)：目录用途与新增模块规则；
+- [ELO_RANKING.md](ELO_RANKING.md)：线上二选一投票的数据冻结、Bradley–Terry 计算、分数换算与验收口径；
+- [evaluation/ROLEPLAY_EVALUATION_DATA_FORMAT_V0_1.md](evaluation/ROLEPLAY_EVALUATION_DATA_FORMAT_V0_1.md)：单回复 Roleplay Judge 输入、隔离标签和上下文审计格式；
+- [evaluation/README.md](evaluation/README.md)：现行评分量表、人工 / LLM Judge、Battle 拟合、概率过滤、会话过滤与 target 导出规范；
+- [experiments/2026-08-27-data-check-elo-active-models-v2.md](experiments/2026-08-27-data-check-elo-active-models-v2.md)：本轮 production ELO 的冻结口径、最终排名和测评数据说明；
+- [experiments/2026-09-06-conversation-target-release-v1.md](experiments/2026-09-06-conversation-target-release-v1.md)：会话评分版本、排名与角色配额训练包的产物记录；
 - [templates/MODULE_README_TEMPLATE.md](templates/MODULE_README_TEMPLATE.md)：新模块说明模板；
 - [templates/EXPERIMENT_RECORD_TEMPLATE.md](templates/EXPERIMENT_RECORD_TEMPLATE.md)：数据、训练和评测实验记录模板。
 

@@ -1,8 +1,8 @@
 # Evaluation
 
-> 状态：目录与契约已建立，具体实现待模块负责人提交
+> 状态：Elo、上下文重建、人工 / LLM Judge、Battle 对齐、单样本及会话过滤实现可用
 >
-> 主负责人：待认领
+> 主负责人：@gaoxiaomo
 >
 > 备份 / Reviewer：待认领
 
@@ -33,16 +33,23 @@
 - 逐样本结果与汇总报告的不可变 URI/hash；
 - 与基线的差异、置信区间或适用的统计说明。
 
-## 建议布局
+## 已有实现
 
-```text
-src/evaluation/
-├── README.md
-├── benchmarks/
-├── inference/
-├── metrics/
-├── judges/
-└── reports/
+- [elo_ranking](elo_ranking/README.md)：将线上匿名二选一胜负票批量拟合为无位置项的 Bradley–Terry 分数、排名和置信区间。
+- [roleplay_judge_dataset](roleplay_judge_dataset/README.md)：按采集期生产逻辑从冻结 ELO 数据高保真重建候选上下文，并生成匿名单回复 Judge 数据。
+- [roleplay_annotation_platform](roleplay_annotation_platform/README.md)：人工标注、投票回放、批量 LLM Judge、多模型一致性、Judge Battle 与可解释权重拟合。
+- 同包独立服务：单样本过滤 V2（概率评分）与会话过滤（无 Gate、候选回复组评分）；包含排名、角色配额与 target 训练包导出。
+
+## 标准、配置与验证
+
+- [协议与完整量表索引](../../docs/evaluation/README.md)
+- [服务配置模板](../../configs/evaluation/README.md)
+- [Elo 冻结记录](../../docs/experiments/2026-08-27-data-check-elo-active-models-v2.md)
+- [会话筛选与训练包记录](../../docs/experiments/2026-09-06-conversation-target-release-v1.md)
+
+```bash
+python -m pip install -r src/evaluation/roleplay_annotation_platform/requirements.txt
+python -m unittest discover -s tests/evaluation -v
 ```
 
-实现提交时，负责人必须补充最小 smoke test、正式运行命令和回归门槛。
+测试使用虚构数据与 mock，不发送付费请求。原始数据、SQLite、请求 / 响应、临时分析与日志不进入 Git；版本化代码和规则留在本目录，运行产物留在 `outputs/` 或受控外部存储。

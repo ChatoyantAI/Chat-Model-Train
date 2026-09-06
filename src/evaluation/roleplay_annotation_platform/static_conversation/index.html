@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>对话过滤评分</title>
+    <meta
+      name="description"
+      content="查看完整角色对话，按对话进行 LLM 过滤评分，定位问题回合。"
+    />
+    <link rel="stylesheet" href="/static/style.css" />
+    <link rel="stylesheet" href="/static/bulk.css?v=bulk-v1" />
+    <script src="/static/app.js?v=bulk-v1" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <strong>对话过滤评分</strong
+        ><span class="version" id="version">V1 · 独立任务</span>
+      </div>
+      <nav>
+        <a id="old-site" href="#">原标注平台</a
+        ><button id="new-job" class="primary" disabled>新建评分任务</button
+        ><span id="username"></span
+        ><button id="logout" hidden>切换用户名</button>
+      </nav>
+    </header>
+    <div id="notice" class="notice" role="status" hidden></div>
+    <section id="login-panel" class="login">
+      <h1>查看对话，决定哪些值得保留</h1>
+      <p>
+        输入固定用户名，任务与结果会分别保存。查看数据和请求预览不产生模型费用。
+      </p>
+      <form id="login-form">
+        <label for="login-name">用户名</label
+        ><input
+          id="login-name"
+          autocomplete="username"
+          maxlength="40"
+          required
+        /><button class="primary">进入工作台</button>
+      </form>
+      <p class="muted">
+        沿用原平台的用户名识别方式，不是密码认证。仅供受信任的团队使用。
+      </p>
+    </section>
+    <main id="workbench" hidden>
+      <section class="dataset-bar">
+        <div id="dataset-stats">正在读取数据…</div>
+        <div class="muted">
+          对话级评分不等于每条回复单独通过 · 原始数据不会被删除
+        </div>
+        <div id="greeting-coverage" class="warning"></div>
+      </section>
+      <section class="jobbar">
+        <label
+          >当前任务
+          <select id="job-select">
+            <option value="">浏览全部对话（不运行评分）</option>
+          </select></label
+        ><button id="refresh-jobs">刷新</button
+        ><span id="job-summary" class="muted">先查看数据，再选择模型启动</span>
+        <div id="job-controls" hidden>
+          <button data-control="pause">暂停</button
+          ><button data-control="resume">继续</button
+          ><button data-control="retry">仅重试失败项</button
+          ><button data-control="cancel" class="danger">取消等待项</button
+          ><button id="export-all">导出结果</button>
+        </div>
+        <progress id="job-progress" max="1" value="0" hidden></progress>
+        <div id="job-note" class="muted"></div>
+      </section>
+      <section class="workspace">
+        <aside class="pane list-pane">
+          <div class="pane-title">
+            <h2>对话目录</h2>
+            <span id="list-count"></span>
+          </div>
+          <form id="filters">
+            <input
+              id="search"
+              placeholder="角色名称 / 对话序号 / ID"
+              aria-label="搜索对话"
+            />
+            <div class="two">
+              <select id="language" aria-label="语言">
+                <option value="">全部语言</option></select
+              ><button>筛选</button>
+            </div>
+            <details>
+              <summary>角色 / 用户范围</summary>
+              <label
+                >角色 ID<input
+                  id="character-filter"
+                  placeholder="精确角色 ID" /></label
+              ><label
+                >用户标识<input
+                  id="user-filter"
+                  placeholder="页面中的用户散列标识"
+              /></label>
+            </details>
+            <div id="result-filters" hidden>
+              <label
+                >结果范围<select id="result-status">
+                  <option value="">全部状态</option>
+                  <option value="eligible">满足当前筛选条件</option>
+                  <option value="review">有低分 / 问题，待复核</option>
+                  <option value="errors">调用失败 / 结果无效 / 中断</option>
+                  <option value="completed">所有已评分</option>
+                  <option value="queued">等待 / 等待重试</option>
+                  <option value="running">运行中</option>
+                </select></label
+              >
+              <div class="two">
+                <label
+                  >每项至少<select id="minimum">
+                    <option>0</option>
+                    <option>1</option>
+                    <option selected>2</option>
+                    <option>3</option>
+                  </select></label
+                ><label class="check"
+                  ><input
+                    type="checkbox"
+                    id="exclude-major"
+                    checked
+                  />排除重大问题</label
+                >
+              </div>
+              <p class="muted small">
+                N/A
+                不当作低分；有依据缺失或定位警告的结果需复核。筛选条件只影响查看，不改分、不删数据。
+              </p>
+              <button id="export-eligible" type="button">
+                导出满足条件的对话 ID 与评分
+              </button>
+            </div>
+          </form>
+          <div id="conversation-list" class="scroll list-content"></div>
+          <footer class="pager">
+            <button id="prev-page">上一页</button><span id="page-label">1</span
+            ><button id="next-page">下一页</button>
+          </footer>
+        </aside>
+        <section class="pane conversation-pane">
+          <div class="pane-title">
+            <h2 id="conversation-title">请选择一段对话</h2>
+            <button id="score-current" disabled>评这一段</button>
+          </div>
+          <div id="conversation-meta" class="meta"></div>
+          <div id="conversation-content" class="scroll">
+            <div class="empty">
+              左侧选择对话，查看角色资料、开场和连续消息。
+            </div>
+          </div>
+        </section>
+        <section class="pane review-pane">
+          <div class="tabs" role="tablist">
+            <button
+              class="active"
+              data-tab="result"
+              role="tab"
+              aria-selected="true"
+            >
+              评分与问题</button
+            ><button data-tab="rubric" role="tab" aria-selected="false">
+              完整评分标准</button
+            ><button data-tab="request" role="tab" aria-selected="false">
+              请求与 Schema
+            </button>
+          </div>
+          <div id="review-content" class="scroll">
+            <div class="empty">尚未运行评估。查看数据不会自动调用模型。</div>
+          </div>
+        </section>
+      </section>
+    </main>
+    <dialog id="job-dialog">
+      <form id="job-form">
+        <div class="dialog-title">
+          <h2>新建对话评分任务</h2>
+          <button type="button" data-close="job-dialog">关闭</button>
+        </div>
+        <p class="muted">
+          一次评一段对话，输出 20
+          项分数及问题回合。不会为每个回合重复发送整套评分。
+        </p>
+        <label
+          >Judge 模型（默认 DeepInfra 直连）<input
+            id="model-input"
+            list="model-options"
+            placeholder="搜索或选择模型 ID"
+            required
+            autocomplete="off" /><datalist id="model-options"></datalist
+        ></label>
+        <div class="row">
+          <button type="button" id="refresh-models">刷新模型目录</button
+          ><span id="model-note" class="muted"></span>
+        </div>
+        <div class="two">
+          <label
+            >评估范围<select id="scope-mode">
+              <option value="random">随机对话</option>
+              <option value="balanced">角色温和平衡抽样</option>
+              <option value="range">连续序号范围</option>
+              <option value="current">当前这一段</option>
+              <option value="all">当前筛选范围内全部</option>
+            </select></label
+          ><label
+            >抽取对话数<input
+              id="scope-count"
+              type="number"
+              min="1"
+              max="20000"
+              value="100"
+          /></label>
+        </div>
+        <div class="two">
+          <label
+            >起始序号<input
+              id="scope-start"
+              type="number"
+              min="1"
+              value="1" /></label
+          ><label
+            >结束序号<input id="scope-end" type="number" min="1" value="100"
+          /></label>
+        </div>
+        <div class="two">
+          <label
+            >随机种子<input
+              id="scope-seed"
+              type="number"
+              value="20260906" /></label
+          ><label
+            >并发请求<input
+              id="scope-concurrency"
+              type="number"
+              min="1"
+              max="64"
+              value="16"
+          /></label>
+        </div>
+        <div class="two">
+          <label
+            >每角色最多几段<input
+              id="scope-role-cap"
+              type="number"
+              min="0"
+              value="0" /></label
+          ><label
+            >每用户最多几段<input
+              id="scope-user-cap"
+              type="number"
+              min="0"
+              value="0"
+          /></label>
+        </div>
+        <p class="muted small">
+          上限 0
+          表示不限；使用左侧当前语言、角色和用户筛选。平衡抽样按角色会话数的平方根分配概率，不保证每个角色都有名额。
+        </p>
+        <label
+          >费用停止阈值（美元）<input
+            id="scope-budget"
+            type="number"
+            min="0.01"
+            step="0.01"
+            max="10000"
+            value="5"
+        /></label>
+        <p class="warning">
+          达到阈值后停止派发；已在途请求仍可能产生费用，因此不是硬账单上限。并发越高，在途费用越多。
+        </p>
+        <label class="check"
+          ><input
+            id="ack-snapshot"
+            type="checkbox"
+            required
+          />我理解这是离线上下文快照，不是线上原始请求的逐字回放；会先查看角色资料及开场来源。</label
+        >
+        <div class="row">
+          <button id="selection-preview" type="button">预览范围（免费）</button
+          ><span id="selection-summary" class="muted"></span>
+        </div>
+        <div class="dialog-actions">
+          <span>Key 仅保存在服务器，不在页面输入或返回。</span
+          ><button id="start-job" class="primary" type="submit">
+            确认并启动付费评分
+          </button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="raw-dialog">
+      <div class="dialog-title">
+        <h2 id="raw-title">详细内容</h2>
+        <button data-close="raw-dialog">关闭</button>
+      </div>
+      <pre id="raw-content"></pre>
+    </dialog>
+  </body>
+</html>

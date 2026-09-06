@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>Battle · 线上投票回放</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <link rel="stylesheet" href="/static/battle.css" />
+  </head>
+  <body>
+    <div id="battle-view" class="hidden">
+      <header class="topbar battle-topbar">
+        <div>
+          <div class="eyebrow">ONLINE VOTE REPLAY</div>
+          <strong>Battle · 线上投票回放</strong>
+        </div>
+        <div class="battle-result-header">
+          <span class="battle-result-kicker">线上用户选择</span>
+          <strong id="online-selected">—</strong>
+        </div>
+        <div class="user-block">
+          <span id="battle-current-user"></span>
+          <a href="/llm-judge" class="ghost small mode-link">LLM Judge</a>
+          <a href="/llm-battle" class="ghost small mode-link">Judge Battle</a>
+          <a href="/llm-compare" class="ghost small mode-link">多模型对齐</a>
+          <a href="/" class="ghost small mode-link">返回双盲标注</a>
+        </div>
+      </header>
+
+      <aside class="battle-warning">
+        这是解盲回放页，会展示线上用户最终选择。需要保持盲态时，请先完成评分再查看。
+      </aside>
+
+      <nav class="sample-nav">
+        <button id="battle-prev" class="ghost">← 上一组</button>
+        <label class="jump-label"
+          >投票组
+          <input id="battle-jump-input" type="number" min="1" value="1" />
+          <span id="battle-total">/ 0</span>
+        </label>
+        <button id="battle-jump" class="ghost">跳转</button>
+        <span id="battle-trigger" class="badge"></span>
+        <span id="battle-time" class="badge battle-time"></span>
+        <button id="battle-next" class="ghost">下一组 →</button>
+      </nav>
+
+      <main class="battle-workspace">
+        <section class="context-pane battle-context-pane">
+          <div class="pane-title">
+            <div>
+              <div class="eyebrow">SHARED CONTEXT</div>
+              <h2>共同对话上下文</h2>
+            </div>
+            <span class="hint">两条候选回复面对同一段上下文</span>
+          </div>
+          <div id="battle-context-warning" class="context-warning hidden">
+            这组记录的两侧上下文不完全一致，当前展示候选 A 的上下文。
+          </div>
+          <div id="battle-messages" class="messages"></div>
+        </section>
+
+        <section class="battle-pane">
+          <div class="pane-title">
+            <div>
+              <div class="eyebrow">HEAD TO HEAD</div>
+              <h2>候选回复对比</h2>
+            </div>
+            <div class="battle-pane-actions">
+              <span class="hint">模型身份默认隐藏</span>
+              <button id="model-reveal-button" class="ghost small">
+                查看模型名称
+              </button>
+            </div>
+          </div>
+          <div class="candidate-comparison">
+            <article id="battle-candidate-a" class="battle-candidate">
+              <header>
+                <div>
+                  <strong>候选 A</strong><span class="model-name hidden"></span>
+                </div>
+                <span class="winner-badge hidden">线上用户选择</span>
+              </header>
+              <pre></pre>
+            </article>
+            <article id="battle-candidate-b" class="battle-candidate">
+              <header>
+                <div>
+                  <strong>候选 B</strong><span class="model-name hidden"></span>
+                </div>
+                <span class="winner-badge hidden">线上用户选择</span>
+              </header>
+              <pre></pre>
+            </article>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="toast" class="toast hidden" role="status"></div>
+    <script src="/static/battle.js" defer></script>
+  </body>
+</html>

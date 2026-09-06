@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>角色扮演双盲标注</title>
+    <link rel="stylesheet" href="/static/style.css?v=20260830-6" />
+  </head>
+  <body>
+    <section id="login-view" class="login-shell hidden">
+      <form id="login-form" class="login-card">
+        <div class="eyebrow">ROLEPLAY EVALUATION</div>
+        <h1>双盲回复标注</h1>
+        <p>
+          输入你的固定用户名。每位标注员看到相同的数据顺序，但进度和结果分别保存。
+        </p>
+        <label for="username">用户名</label>
+        <input
+          id="username"
+          name="username"
+          maxlength="40"
+          autocomplete="username"
+          required
+          placeholder="例如：annotator_01"
+        />
+        <button type="submit" class="primary">开始评估</button>
+        <p class="fine-print">平台不会显示模型名称、左右位置或真人投票结果。</p>
+      </form>
+    </section>
+
+    <div id="app-view" class="hidden">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow">ROLEPLAY EVALUATION</div>
+          <strong>双盲回复标注</strong>
+        </div>
+        <div class="topbar-center">
+          <div class="progress-line">
+            <span id="progress-text">0 / 0</span>
+            <span id="save-state">尚未保存</span>
+          </div>
+          <div class="progress-track"><div id="progress-fill"></div></div>
+        </div>
+        <div class="user-block">
+          <a href="/llm-judge" class="ghost small mode-link">LLM Judge</a>
+          <a href="/llm-battle" class="ghost small mode-link">Judge Battle</a>
+          <a href="/llm-compare" class="ghost small mode-link">多模型对齐</a>
+          <a href="/battle" class="ghost small mode-link"
+            >Battle 回放（解盲）</a
+          >
+          <span id="current-user"></span>
+          <button id="logout-button" class="ghost small">退出</button>
+        </div>
+      </header>
+
+      <nav class="sample-nav">
+        <button id="prev-button" class="ghost">← 上一条</button>
+        <label class="jump-label"
+          >样本
+          <input id="jump-input" type="number" min="1" value="1" />
+          <span id="sample-total">/ 0</span>
+        </label>
+        <button id="jump-button" class="ghost">跳转</button>
+        <span id="trigger-badge" class="badge"></span>
+        <button id="next-button" class="ghost">下一条 →</button>
+      </nav>
+
+      <main class="workspace">
+        <section class="context-pane">
+          <div class="pane-title">
+            <div>
+              <div class="eyebrow">CONTEXT</div>
+              <h2>对话上下文</h2>
+            </div>
+            <span class="hint"
+              >System、Greeting 与历史消息均来自同一重建样本</span
+            >
+          </div>
+          <div id="messages" class="messages"></div>
+          <article class="candidate-card">
+            <div class="candidate-label">本条待评回复 · Assistant</div>
+            <div
+              id="candidate-content"
+              class="candidate-content"
+              translate="yes"
+            ></div>
+          </article>
+        </section>
+
+        <section class="rubric-pane">
+          <div class="pane-title sticky-title">
+            <div>
+              <div class="eyebrow">RUBRIC</div>
+              <h2>评分标准</h2>
+            </div>
+            <span id="score-counter" class="counter">0 / 20</span>
+          </div>
+
+          <section id="rubric-guide" class="rubric-guide"></section>
+
+          <details class="gate-panel" open>
+            <summary>Gate 检查</summary>
+            <div id="gate-groups"></div>
+            <label class="notes-label"
+              >Gate 证据或备注
+              <textarea
+                id="gate-notes"
+                rows="2"
+                placeholder="需要时填写直接证据"
+              ></textarea>
+            </label>
+          </details>
+
+          <div id="rubric-dimensions"></div>
+
+          <label class="notes-label overall-notes"
+            >整体备注（可选）
+            <textarea
+              id="overall-notes"
+              rows="3"
+              placeholder="只写无法归入单个原子项的补充说明"
+            ></textarea>
+          </label>
+
+          <div class="actions">
+            <button id="save-button" class="ghost">保存草稿</button>
+            <button id="submit-button" class="primary">提交并进入下一条</button>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="toast" class="toast hidden" role="status"></div>
+    <script src="/static/app.js?v=20260901-1" defer></script>
+  </body>
+</html>

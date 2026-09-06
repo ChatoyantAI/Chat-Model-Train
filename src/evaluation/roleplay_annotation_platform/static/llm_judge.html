@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>LLM Judge · 角色回复评分</title>
+    <link rel="stylesheet" href="/static/style.css?v=20260830-4" />
+    <link rel="stylesheet" href="/static/llm_judge.css?v=20260902-2" />
+  </head>
+  <body>
+    <div id="llm-view" class="hidden">
+      <header class="topbar llm-topbar">
+        <div>
+          <div class="eyebrow">LLM AS JUDGE</div>
+          <strong>后台模型评分</strong>
+        </div>
+        <div class="llm-rule-identity">
+          <span id="llm-rubric-version">规则 —</span>
+          <code id="llm-rubric-hash">—</code>
+        </div>
+        <div class="user-block">
+          <a href="/llm-battle" class="ghost small mode-link">Judge Battle</a>
+          <a href="/llm-compare" class="ghost small mode-link">多模型对齐</a>
+          <a href="/" class="ghost small mode-link">人工标注</a>
+          <a href="/battle" class="ghost small mode-link">Battle</a>
+          <span id="llm-current-user"></span>
+        </div>
+      </header>
+
+      <aside id="llm-disabled" class="llm-disabled hidden"></aside>
+
+      <main class="llm-workspace">
+        <section class="llm-sidebar">
+          <article class="llm-card">
+            <div class="eyebrow">NEW JOB</div>
+            <h2>创建评分任务</h2>
+            <p class="llm-help">
+              OpenRouter 与 TatuCloud Key 都仅由服务器读取，不会下发到
+              HTML、JavaScript、接口响应或请求预览。一个样本对应一次独立请求，任务在后台持续运行。
+            </p>
+
+            <div class="model-catalog-heading">
+              <span id="llm-model-catalog" class="fine-print">模型目录 —</span>
+              <button id="llm-refresh-models" class="ghost tiny" type="button">
+                刷新目录
+              </button>
+            </div>
+            <label
+              >搜索 Judge 模型
+              <input
+                id="llm-model-search"
+                type="search"
+                autocomplete="off"
+                placeholder="输入模型名称或 ID"
+              />
+            </label>
+            <label
+              >Judge 模型
+              <select id="llm-model"></select>
+            </label>
+            <p id="llm-provider-route" class="provider-route fine-print"></p>
+
+            <label
+              >样本范围
+              <select id="llm-scope">
+                <option value="current">单条样本</option>
+                <option value="range">指定范围</option>
+                <option value="random">随机抽取</option>
+                <option value="all">全部样本</option>
+              </select>
+            </label>
+
+            <div id="scope-current" class="scope-fields">
+              <label
+                >样本序号
+                <input id="llm-seq" type="number" min="1" value="1" />
+              </label>
+            </div>
+            <div id="scope-range" class="scope-fields hidden two-fields">
+              <label
+                >开始序号
+                <input id="llm-start" type="number" min="1" value="1" />
+              </label>
+              <label
+                >结束序号
+                <input id="llm-end" type="number" min="1" value="10" />
+              </label>
+            </div>
+            <div id="scope-random" class="scope-fields hidden">
+              <label
+                >随机数量
+                <input id="llm-random-count" type="number" min="1" value="10" />
+              </label>
+            </div>
+
+            <label
+              >任务预算上限（美元）
+              <input
+                id="llm-budget"
+                type="number"
+                min="0.01"
+                step="0.01"
+                value="5.00"
+              />
+            </label>
+
+            <div class="llm-create-actions">
+              <button id="llm-test-one" class="ghost">试跑当前一条</button>
+              <button id="llm-create" class="primary">开始后台任务</button>
+            </div>
+            <p id="llm-limits" class="fine-print"></p>
+          </article>
+
+          <article class="llm-card">
+            <div class="eyebrow">REQUEST INSPECTOR</div>
+            <h2>发送前检查</h2>
+            <p class="llm-help">
+              两阶段流程：先评 8 个数据有效性与产品体验
+              Gate；暂不审核安全项。只有 Gate 未命中淘汰条件时才发送第二次请求评
+              20 个维度项。
+            </p>
+            <div class="llm-create-actions inspect-actions">
+              <button id="llm-show-request" class="ghost">
+                查看待发送请求
+              </button>
+              <button id="llm-show-schema" class="ghost">
+                查看输出 Schema
+              </button>
+            </div>
+          </article>
+
+          <article class="llm-card job-list-card">
+            <div class="llm-section-heading">
+              <div>
+                <div class="eyebrow">HISTORY</div>
+                <h2>我的任务</h2>
+              </div>
+              <button id="llm-refresh" class="ghost small">刷新</button>
+            </div>
+            <div id="llm-jobs" class="llm-jobs"></div>
+          </article>
+        </section>
+
+        <section class="llm-main">
+          <article id="llm-empty" class="llm-card llm-empty">
+            <h2>选择一个任务查看进度</h2>
+            <p>
+              先执行精简 Gate
+              请求并淘汰失败样本；通过后才执行维度评分请求。两个阶段分别使用严格
+              JSON Schema。
+            </p>
+            <p class="llm-help">
+              左侧“发送前检查”可以直接查看完整请求、待评上下文和期望输出结构。
+            </p>
+          </article>
+
+          <div id="llm-job-detail" class="hidden">
+            <article class="llm-card">
+              <div class="llm-section-heading">
+                <div>
+                  <div class="eyebrow">JOB STATUS</div>
+                  <h2 id="job-title">—</h2>
+                </div>
+                <span id="job-status" class="job-status"></span>
+              </div>
+              <div class="job-meta">
+                <span id="job-model"></span>
+                <span id="job-scope"></span>
+                <span id="job-cost"></span>
+              </div>
+              <div class="job-progress-track">
+                <div id="job-progress-fill"></div>
+              </div>
+              <div id="job-progress-text" class="job-progress-text"></div>
+              <div class="job-controls">
+                <button id="job-pause" class="ghost">暂停</button>
+                <button id="job-resume" class="ghost">继续</button>
+                <button id="job-cancel" class="ghost danger-button">
+                  停止剩余任务
+                </button>
+                <button id="job-schema" class="ghost">查看输出 Schema</button>
+              </div>
+            </article>
+
+            <article class="llm-card">
+              <div class="llm-section-heading">
+                <div>
+                  <div class="eyebrow">SAMPLES</div>
+                  <h2>样本明细</h2>
+                </div>
+                <span class="llm-help">点击已完成项查看逐项判断</span>
+              </div>
+              <div class="llm-table-wrap">
+                <table class="llm-table">
+                  <thead>
+                    <tr>
+                      <th>位置</th>
+                      <th>样本</th>
+                      <th>状态</th>
+                      <th>尝试</th>
+                      <th>说明</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="job-items"></tbody>
+                </table>
+              </div>
+            </article>
+
+            <article id="judgment-detail" class="llm-card hidden">
+              <div class="llm-section-heading">
+                <div>
+                  <div class="eyebrow">JUDGMENT</div>
+                  <h2 id="judgment-title">评分结果</h2>
+                </div>
+                <span id="judgment-usage" class="llm-help"></span>
+              </div>
+              <p id="judgment-error" class="judgment-error hidden"></p>
+              <div id="judgment-gates"></div>
+              <div id="judgment-scores"></div>
+              <details id="judgment-raw" class="judgment-raw hidden">
+                <summary>查看模型原始输出（未校验）</summary>
+                <p class="llm-help">
+                  保留模型最终 content、完成原因、拒答和推理 Token
+                  统计；不展示模型的推理正文。
+                </p>
+                <pre id="judgment-raw-content"></pre>
+              </details>
+            </article>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="inspector-dialog" class="schema-dialog inspector-dialog">
+      <div class="llm-section-heading">
+        <div>
+          <div class="eyebrow">REQUEST INSPECTOR</div>
+          <h2>模型请求检查器</h2>
+        </div>
+        <button id="inspector-close" class="ghost small">关闭</button>
+      </div>
+      <p id="inspector-identity" class="llm-help"></p>
+      <div class="inspector-tabs" role="tablist" aria-label="请求检查内容">
+        <button class="ghost small inspector-tab" data-tab="context" role="tab">
+          待评上下文
+        </button>
+        <button class="ghost small inspector-tab" data-tab="request" role="tab">
+          完整请求 JSON
+        </button>
+        <button class="ghost small inspector-tab" data-tab="schema" role="tab">
+          期望输出 Schema
+        </button>
+      </div>
+      <section
+        id="inspector-panel-context"
+        class="inspector-panel"
+        data-panel="context"
+      >
+        <p class="llm-help">
+          以下是送入 user 消息的规范化待评数据；顺序与真实请求一致。
+        </p>
+        <div id="inspector-context" class="inspector-context"></div>
+      </section>
+      <section
+        id="inspector-panel-request"
+        class="inspector-panel hidden"
+        data-panel="request"
+      >
+        <p class="llm-help">
+          这里同时展示 Gate 请求和条件执行的维度请求。Authorization
+          只存在于服务器请求头中。
+        </p>
+        <pre id="request-content"></pre>
+      </section>
+      <section
+        id="inspector-panel-schema"
+        class="inspector-panel hidden"
+        data-panel="schema"
+      >
+        <p class="llm-help">
+          Gate 与维度评分使用两个独立 Schema；第二个 Schema 不再包含 Gate 或
+          SKIP。
+        </p>
+        <pre id="schema-content"></pre>
+      </section>
+    </dialog>
+
+    <div id="toast" class="toast hidden" role="status"></div>
+    <script src="/static/llm_judge.js?v=20260903-1" defer></script>
+  </body>
+</html>

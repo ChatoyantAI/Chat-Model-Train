@@ -1,0 +1,16 @@
+[Unit]
+Description=Roleplay evaluation (annotation)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/roleplay-evaluation
+EnvironmentFile=%h/roleplay-evaluation/configs/evaluation/annotation.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=%h/roleplay-evaluation/.venv/bin/python -m uvicorn src.evaluation.roleplay_annotation_platform.app:app --host 0.0.0.0 --port 8766 --workers 1
+Restart=on-failure
+RestartSec=5
+UMask=0027
+
+[Install]
+WantedBy=default.target
