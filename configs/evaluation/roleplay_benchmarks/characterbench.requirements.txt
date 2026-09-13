@@ -1,0 +1,12 @@
+# GPU runner requires a compatible CUDA/PyTorch/vLLM environment.
+# Resolve on the actual target host, then save pip freeze in each run directory.
+openai
+pydantic>=2
+httpx
+tqdm
+transformers
+accelerate
+torch
+vllm
+numpy
+scipy
