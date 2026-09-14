@@ -17,6 +17,8 @@
 
 ## 一键下载
 
+Linux 新服务器的目录规划、隔离环境和运行者指定 GPU 方法见 [服务器部署说明](../../../../docs/evaluation/LINUX_SERVER_DEPLOYMENT.md)。部署不自动启动模型或付费评测。
+
 需要 Python 3.11+、Git，以及可访问 GitHub / Hugging Face 的网络；下载本身不需要 CUDA、PyTorch、OpenAI SDK。
 
 ```bash
