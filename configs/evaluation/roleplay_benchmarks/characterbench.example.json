@@ -1,0 +1,13 @@
+{
+  "benchmark": "characterbench",
+  "protocol_label": "CharacterBench-official-code-engineering-adapter-v1",
+  "actor_model": "REPLACE_WITH_SERVED_MODEL_ID",
+  "actor_alias": "candidate",
+  "base_url_env": "BENCHMARK_BASE_URL",
+  "api_key_env": "BENCHMARK_API_KEY",
+  "judge_path_env": "CHARACTERJUDGE_PATH",
+  "judge_revision": "REPLACE_WITH_IMMUTABLE_CHARACTERJUDGE_REVISION",
+  "model_revision": "REPLACE_WITH_IMMUTABLE_MODEL_REVISION",
+  "precision": "REPLACE_WITH_ACTUAL_PRECISION",
+  "runtime_notes": "CHARACTERJUDGE_PATH must point to a revision-pinned local snapshot of thu-coai/CharacterJudge. Official prompt, normalization, local judge generation and aggregation are preserved."
+}

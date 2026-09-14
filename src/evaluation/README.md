@@ -35,6 +35,10 @@
 
 ## 建议布局
 
+### 公开角色扮演基准
+
+新增 [Role-play Benchmark Suite](roleplay_benchmarks/README.md)：固定 CoSER、CharacterBench、RMTBench、MiniMax 官方来源；通过脚本下载与 SHA-256 校验，不提交大型数据或 Token。执行包装与完整评测的验证状态在模块 README 中分别列出。
+
 ```text
 src/evaluation/
 ├── README.md

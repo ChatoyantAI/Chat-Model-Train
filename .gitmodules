@@ -1,0 +1,6 @@
+[submodule "vendor/benchmarks/CoSER"]
+	path = vendor/benchmarks/CoSER
+	url = https://github.com/Neph0s/CoSER.git
+[submodule "vendor/benchmarks/CharacterBench"]
+	path = vendor/benchmarks/CharacterBench
+	url = https://github.com/thu-coai/CharacterBench.git

@@ -1,0 +1,7 @@
+# Install in a separate environment, not the training/production environment.
+# Upstream requirements remain verbatim in vendor; these are missing runtime imports.
+-r ../../../vendor/benchmarks/CoSER/requirements.txt
+nltk
+rouge
+numpy
+tqdm

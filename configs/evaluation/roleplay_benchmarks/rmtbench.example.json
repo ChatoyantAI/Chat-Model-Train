@@ -1,0 +1,18 @@
+{
+  "benchmark": "rmtbench",
+  "protocol_label": "rmtbench-public-paper-v1",
+  "languages": ["en", "zh"],
+  "version": "claude35",
+  "layout": "mixed_four_blocks",
+  "repeats": 2,
+  "seed": 42,
+  "limit_cases": null,
+  "concurrency": 4,
+  "max_attempts": 3,
+  "timeout_seconds": 180,
+  "max_requests_per_run": 100,
+  "roles": {
+    "actor": {"model": "REPLACE_WITH_ACTOR_MODEL", "revision": "REPLACE_WITH_REVISION", "base_url_env": "ACTOR_BASE_URL", "api_key_env": "ACTOR_API_KEY", "sampling": {}},
+    "judge": {"model": "Qwen/Qwen2.5-72B-Instruct", "revision": "REPLACE_WITH_JUDGE_REVISION", "base_url_env": "JUDGE_BASE_URL", "api_key_env": "JUDGE_API_KEY", "sampling": {"temperature": 0, "max_tokens": 1024}}
+  }
+}
