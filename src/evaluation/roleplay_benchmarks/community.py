@@ -52,9 +52,13 @@ def validate(config):
             if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", role[key]):
                 raise ValueError("Use environment variable names, not credential values")
         sampling = role["sampling"]
-        if not isinstance(sampling, dict) or set(sampling) - {"temperature", "top_p", "seed", "max_tokens", "max_completion_tokens"}:
+        if not isinstance(sampling, dict) or set(sampling) - {"temperature", "top_p", "seed", "max_tokens", "max_completion_tokens", "chat_template_kwargs"}:
             raise ValueError("Unsupported sampling fields")
         for key, value in sampling.items():
+            if key == "chat_template_kwargs":
+                if value != {"enable_thinking": False}:
+                    raise ValueError("Only chat_template_kwargs.enable_thinking=false is supported")
+                continue
             if type(value) not in (int, float) or not math.isfinite(value):
                 raise ValueError("Sampling values must be finite numbers")
             if key in ("seed", "max_tokens", "max_completion_tokens") and type(value) is not int:
