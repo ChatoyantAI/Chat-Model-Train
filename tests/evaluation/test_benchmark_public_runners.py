@@ -79,6 +79,15 @@ class PublicProtocolTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 community.validate({**cfg, **delta})
 
+    def test_thinking_can_be_disabled_with_provider_extension(self):
+        cfg = config("rmtbench")
+        cfg["roles"]["actor"]["sampling"] = {"temperature": 0, "max_tokens": 32,
+                                                   "chat_template_kwargs": {"enable_thinking": False}}
+        community.validate(cfg)
+        with self.assertRaises(ValueError):
+            cfg["roles"]["actor"]["sampling"]["chat_template_kwargs"] = {"enable_thinking": True}
+            community.validate(cfg)
+
     def test_retry_parse_failure_and_cache(self):
         with tempfile.TemporaryDirectory() as tmp:
             calls = []

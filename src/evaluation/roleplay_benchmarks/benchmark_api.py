@@ -70,7 +70,11 @@ class Client:
 
     def call(self, directory, role_name, messages, parser=lambda text: text):
         role = self.config["roles"][role_name]
-        payload = {"model": role["model"], "messages": messages, "stream": False, **role["sampling"]}
+        sampling = dict(role["sampling"])
+        template_kwargs = sampling.pop("chat_template_kwargs", None)
+        payload = {"model": role["model"], "messages": messages, "stream": False, **sampling}
+        if template_kwargs is not None:
+            payload["chat_template_kwargs"] = template_kwargs
         fingerprint = object_hash({"role": role_name, "revision": role["revision"], "payload": payload})
         path = Path(directory) / (fingerprint + ".json")
         if path.exists():
