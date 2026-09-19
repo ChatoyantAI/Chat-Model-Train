@@ -158,6 +158,9 @@ class PublicProtocolTests(unittest.TestCase):
 
 @unittest.skipUnless((ROOT / "data/external/roleplay_benchmarks/rmtbench-paper/2507.20352v2.html").exists(), "Download paper/source assets first")
 class FullFixtureTests(unittest.TestCase):
+    def setUp(self):
+        (ROOT / "outputs").mkdir(exist_ok=True)
+
     def test_published_templates_and_upa_fix(self):
         templates = load_templates()
         self.assertEqual(set(templates["dimensions"]), {"EE", "EC", "PA", "CU"})

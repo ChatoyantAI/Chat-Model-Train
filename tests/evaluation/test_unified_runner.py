@@ -20,6 +20,9 @@ def response(text="next message"):
 
 
 class UnifiedRunnerTests(unittest.TestCase):
+    def setUp(self):
+        (ROOT / "outputs").mkdir(exist_ok=True)
+
     def config(self):
         return {
             "schema_version": 1,
