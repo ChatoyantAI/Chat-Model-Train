@@ -4,6 +4,10 @@
 
 > 原仓库内容保存在 `back` 分支。`back` 只用于查阅与迁移，不作为新开发的起点。
 
+## 公开角色扮演评测
+
+[统一评测运行说明](docs/evaluation/UNIFIED_PUBLIC_EVALUATION.md)：克隆仓库后运行安装脚本，配置候选模型与裁判的 API 端点，即可启动 CharacterBench、CoSER、MiniMax、RMTBench。评测不负责模型部署。
+
 ## 基本原则
 
 1. **分支开发**：禁止直接向 `main` 提交或推送代码。

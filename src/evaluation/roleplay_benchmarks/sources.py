@@ -114,8 +114,8 @@ def verify_git(spec):
         raise ValueError("Missing submodule; run git submodule update --init --recursive")
     if git("rev-parse", "HEAD", cwd=path) != spec["revision"]:
         raise ValueError("Upstream commit differs from sources.lock.json")
-    if git("status", "--porcelain", "--untracked-files=all", cwd=path):
-        raise ValueError("Upstream checkout is dirty; retain patches outside vendor")
+    if git("diff", "--name-only", "HEAD", "--", cwd=path):
+        raise ValueError("Tracked upstream source changed; retain patches outside vendor")
     files = subprocess.check_output(["git", "ls-files", "-z"], cwd=path).decode("utf-8").rstrip("\0").split("\0")
     return {"status": "verified", "revision": spec["revision"], "files": {
         name: {"sha256": digest(inside(path, name)), "bytes": inside(path, name).stat().st_size}

@@ -2,6 +2,7 @@ import contextlib
 from email.message import Message
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import io
+import inspect
 import json
 import os
 from pathlib import Path
@@ -78,15 +79,6 @@ class PublicProtocolTests(unittest.TestCase):
         for delta in ({"api_key": "secret"}, {"generated_messages": 3}, {"max_requests_per_run": 0}, {"languages": ["en", "en"]}):
             with self.assertRaises(ValueError):
                 community.validate({**cfg, **delta})
-
-    def test_thinking_can_be_disabled_with_provider_extension(self):
-        cfg = config("rmtbench")
-        cfg["roles"]["actor"]["sampling"] = {"temperature": 0, "max_tokens": 32,
-                                                   "chat_template_kwargs": {"enable_thinking": False}}
-        community.validate(cfg)
-        with self.assertRaises(ValueError):
-            cfg["roles"]["actor"]["sampling"]["chat_template_kwargs"] = {"enable_thinking": True}
-            community.validate(cfg)
 
     def test_retry_parse_failure_and_cache(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -250,6 +242,81 @@ class FullFixtureTests(unittest.TestCase):
             messages = read_json(next((directory / "cases").glob("*/trajectory.json")))["messages"]
             self.assertEqual(len(messages), 6)
             self.assertEqual(len(list(mini_chunks(messages, 2))), 2)
+
+    def test_async_checkpoints_preserve_final_scores_and_zero_call_resume(self):
+        from types import SimpleNamespace
+        from scripts.evaluation.async_checkpoints import AsyncCheckpoints
+        from scripts.evaluation.recovery_queue_guard import install_checkpoint_io
+        from src.evaluation.roleplay_benchmarks import benchmark_api
+        with tempfile.TemporaryDirectory(dir=ROOT / 'outputs') as tmp, contextlib.ExitStack() as stack:
+            directory = self.prepare_run(tmp, 'minimax')
+            for module, names in [(community, ['read_json', 'write_json', 'generate_case', 'judge_case', 'aggregate']),
+                                  (benchmark_api, ['read_json', 'write_json'])]:
+                for name in names:
+                    stack.enter_context(patch.object(module, name, getattr(module, name)))
+            writer = AsyncCheckpoints(workers=2)
+            try:
+                install_checkpoint_io(SimpleNamespace(), community, benchmark_api, writer)
+                def sender(role, payload, timeout):
+                    text = json.dumps(six_scores()) if 'Evaluate existing' in payload['messages'][0]['content'] else 'next message'
+                    result = response(text)
+                    result['usage']['estimated_cost'] = .01
+                    return result
+                result = community.run(directory, 'evaluate', True, 100, sender)
+                writer.flush()
+                self.assertTrue(result['coverage']['complete'])
+                before = read_json(directory / 'summary.json')
+                self.assertEqual(before['scores']['en']['overall'], 80)
+                self.assertEqual(before['attempts'], 6)
+                self.assertAlmostEqual(before['usage']['cost'], .06)
+                self.assertEqual(community.run(directory, 'evaluate', True, 100, sender)['requests_this_run'], 0)
+                writer.flush()
+                self.assertEqual(read_json(directory / 'summary.json'), before)
+            finally:
+                writer.close()
+
+    def test_judge_precedes_single_accounting_scan_and_resume_reuses_cache(self):
+        from scripts.evaluation.recovery_queue_guard import install_deferred_aggregation
+        from types import SimpleNamespace
+        # Exercise both a fresh checkout and the frozen engine's runtime repair.
+        for frozen in (False, True):
+            with self.subTest(frozen=frozen), tempfile.TemporaryDirectory(dir=ROOT / "outputs") as tmp:
+                directory = self.prepare_run(tmp, "minimax")
+                runner = community.run
+                if frozen:
+                    source = inspect.getsource(runner).replace(
+                        "\n        summary = aggregate(directory, manifest, cases)\n",
+                        "\n            summary = aggregate(directory, manifest, cases)\n")
+                    path = Path(tmp) / "legacy_run.py"
+                    path.write_text(source, encoding="utf-8")
+                    namespace = {}
+                    exec(compile(source, str(path), "exec"), runner.__globals__, namespace)
+                    module = SimpleNamespace(run=namespace["run"])
+                    install_deferred_aggregation(module)
+                    runner = module.run
+                events = []
+                original_aggregate = community.aggregate
+                def aggregate(*args):
+                    self.assertEqual(events.count("judge"), 2)
+                    events.append("aggregate")
+                    return original_aggregate(*args)
+                def sender(role, payload, timeout):
+                    judging = "Evaluate existing" in payload["messages"][0]["content"]
+                    events.append("judge" if judging else "generate")
+                    result = response(json.dumps(six_scores()) if judging else "next message")
+                    result["usage"]["estimated_cost"] = .01
+                    return result
+                with patch.object(community, "aggregate", side_effect=aggregate):
+                    result = runner(directory, "evaluate", True, 100, sender)
+                    self.assertTrue(result["coverage"]["complete"])
+                    self.assertEqual(events.count("aggregate"), 1)
+                    before = read_json(directory / "summary.json")
+                    self.assertEqual(before["attempts"], 6)
+                    self.assertAlmostEqual(before["usage"]["cost"], .06)
+                    self.assertEqual(runner(directory, "evaluate", True, 100, sender)["requests_this_run"], 0)
+                    self.assertEqual(events.count("judge"), 2)
+                    self.assertEqual(events.count("aggregate"), 2)
+                    self.assertEqual(read_json(directory / "summary.json"), before)
 
     def test_snapshot_and_protocol_identity(self):
         with tempfile.TemporaryDirectory(dir=ROOT / "outputs") as tmp:

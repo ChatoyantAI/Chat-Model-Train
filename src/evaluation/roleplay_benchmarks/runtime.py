@@ -29,7 +29,11 @@ def patched_sources(name, upstream):
         relative = "gca_evaluation/utils.py"
         text = (upstream / relative).read_text(encoding="utf-8")
         text = replace_exact(text, "with open('config.json', 'r') as f:\n\tconfig = json.load(f)",
-            "config = {'api_key': os.environ['BENCH_RUNTIME_KEY'], 'base_url': os.environ['BENCH_RUNTIME_URL']}")
+            "config = {'api_key': os.environ['BENCH_RUNTIME_KEY'], 'base_url': os.environ['BENCH_RUNTIME_URL']}\n_runtime_endpoints_by_model = json.loads(os.environ.get('BENCH_RUNTIME_ENDPOINTS_BY_MODEL', '{}'))\ndef _runtime_endpoint(model):\n\tvalue = _runtime_endpoints_by_model.get(model, {})\n\treturn value if isinstance(value, dict) else config\n_runtime_options_by_model = json.loads(os.environ.get('BENCH_RUNTIME_REQUEST_OPTIONS_BY_MODEL', '{}'))\ndef _runtime_options(model):\n\tvalue = _runtime_options_by_model.get(model, {})\n\treturn value if isinstance(value, dict) else {}")
+        text = text.replace("client = openai.OpenAI(api_key=config['api_key'], base_url=config['base_url'], timeout=180)",
+                            "endpoint = _runtime_endpoint(model)\n\t\tclient = openai.OpenAI(api_key=endpoint.get('api_key', config['api_key']), base_url=endpoint.get('base_url', config['base_url']), timeout=180)")
+        text = text.replace("\t\t\t\tmodel=model,\n",
+                            "\t\t\t\tmodel=model,\n\t\t\t\textra_body=_runtime_options(model),\n")
         return {relative: text}
     if name != "characterbench":
         raise ValueError("No official runnable harness is available for this benchmark")
@@ -44,10 +48,13 @@ def patched_sources(name, upstream):
     # API plumbing only: honor the requested actor rather than hard-coded gpt-4o.
     # Bounded API failure retries already exist in process.py; no second infinite loop.
     gpt_call = '''from openai import OpenAI
+import json
 import os
 client = OpenAI(base_url=os.environ["BENCH_RUNTIME_URL"], api_key=os.environ["BENCH_RUNTIME_KEY"], timeout=180, max_retries=0)
+_request_options = json.loads(os.environ.get("BENCH_RUNTIME_REQUEST_OPTIONS", "{}"))
 def gpt_call(prompt, model_name):
-    response = client.chat.completions.create(model=model_name, messages=[{"role": "user", "content": prompt}])
+    options = _request_options if isinstance(_request_options, dict) else {}
+    response = client.chat.completions.create(model=model_name, messages=[{"role": "user", "content": prompt}], extra_body=options)
     return response.choices[0].message.content
 '''
     return {"process.py": text, "gpt_call.py": gpt_call, "model_generation_qwen_chat.py": judge}
@@ -85,17 +92,17 @@ def validate_config(config):
     return spec
 
 
-def prepare(config_path, run_dir):
+def prepare(config_path, run_dir, allow_external=False):
     config = read_json(config_path)
     if config.get("benchmark") in ("rmtbench", "minimax"):
         from .community import prepare as prepare_public
-        return prepare_public(config_path, run_dir)
+        return prepare_public(config_path, run_dir, allow_external=allow_external)
     spec = validate_config(config)
     source_manifest = verify_one(config["benchmark"], spec)
     run_dir = Path(run_dir).resolve()
     if run_dir.exists():
         raise ValueError("Run directory already exists; use a new ID or resume with run")
-    if not run_dir.is_relative_to(ROOT / "outputs"):
+    if not allow_external and not run_dir.is_relative_to(ROOT / "outputs"):
         raise ValueError("Run directories must be under repository outputs/")
     upstream = inside(ROOT, spec["path"])
     run_dir.mkdir(parents=True)
@@ -186,12 +193,12 @@ def audit_character(work):
     return result
 
 
-def run(run_dir, stage, python=sys.executable, execute=False, max_requests=None):
+def run(run_dir, stage, python=sys.executable, execute=False, max_requests=None, allow_external=False):
     run_dir = Path(run_dir).resolve()
     manifest = read_json(run_dir / "manifest.json")
     if manifest.get("runner") == "public-method-v1":
         from .community import run as run_public
-        return run_public(run_dir, stage, execute, max_requests)
+        return run_public(run_dir, stage, execute, max_requests, allow_external=allow_external)
     if max_requests is not None:
         raise ValueError("--max-requests applies to RMTBench/MiniMax only")
     config = manifest["config"]
@@ -222,6 +229,20 @@ def run(run_dir, stage, python=sys.executable, execute=False, max_requests=None)
             if not value:
                 raise ValueError(f"Missing environment variable: {config[key]}")
             env[name] = value
+        options_by_model = config.get("request_options_by_model", {})
+        if options_by_model:
+            env["BENCH_RUNTIME_REQUEST_OPTIONS_BY_MODEL"] = json.dumps(options_by_model, ensure_ascii=False)
+        endpoint_env_by_model = config.get("endpoint_env_by_model", {})
+        if endpoint_env_by_model:
+            resolved = {}
+            for model, names in endpoint_env_by_model.items():
+                resolved[model] = {
+                    "base_url": os.environ.get(names["base_url_env"], ""),
+                    "api_key": os.environ.get(names["api_key_env"], ""),
+                }
+            env["BENCH_RUNTIME_ENDPOINTS_BY_MODEL"] = json.dumps(resolved, ensure_ascii=False)
+        if config.get("request_options"):
+            env["BENCH_RUNTIME_REQUEST_OPTIONS"] = json.dumps(config["request_options"], ensure_ascii=False)
     if stage == "judge":
         judge_path = Path(os.environ.get(config["judge_path_env"], ""))
         if not judge_path.is_absolute() or not (judge_path / "config.json").exists():

@@ -52,13 +52,9 @@ def validate(config):
             if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", role[key]):
                 raise ValueError("Use environment variable names, not credential values")
         sampling = role["sampling"]
-        if not isinstance(sampling, dict) or set(sampling) - {"temperature", "top_p", "seed", "max_tokens", "max_completion_tokens", "chat_template_kwargs"}:
+        if not isinstance(sampling, dict) or set(sampling) - {"temperature", "top_p", "seed", "max_tokens", "max_completion_tokens"}:
             raise ValueError("Unsupported sampling fields")
         for key, value in sampling.items():
-            if key == "chat_template_kwargs":
-                if value != {"enable_thinking": False}:
-                    raise ValueError("Only chat_template_kwargs.enable_thinking=false is supported")
-                continue
             if type(value) not in (int, float) or not math.isfinite(value):
                 raise ValueError("Sampling values must be finite numbers")
             if key in ("seed", "max_tokens", "max_completion_tokens") and type(value) is not int:
@@ -80,14 +76,14 @@ def validate(config):
             raise ValueError("prompt_file is required")
 
 
-def prepare(config_path, run_dir):
+def prepare(config_path, run_dir, allow_external=False):
     config = read_json(config_path)
     validate(config)
     name = config["benchmark"]
     spec = registry()[name]
     source = verify_one(name, spec)
     directory = Path(run_dir).resolve()
-    if directory.exists() or not directory.is_relative_to(ROOT / "outputs") or directory == ROOT / "outputs":
+    if directory.exists() or (not allow_external and not directory.is_relative_to(ROOT / "outputs")) or directory == ROOT / "outputs":
         raise ValueError("Use a new run directory under repository outputs/")
     cases = build_cases(config, inside(ROOT, spec["path"]))
     if not cases:
@@ -142,9 +138,9 @@ def prepare(config_path, run_dir):
     return manifest
 
 
-def load_run(directory):
+def load_run(directory, allow_external=False):
     directory = Path(directory).resolve()
-    if directory == ROOT / "outputs" or not directory.is_relative_to(ROOT / "outputs"):
+    if directory == ROOT / "outputs" or (not allow_external and not directory.is_relative_to(ROOT / "outputs")):
         raise ValueError("Run directory must be under repository outputs/")
     manifest = read_json(directory / "manifest.json")
     if manifest.get("runner") != "public-method-v1":
@@ -329,8 +325,8 @@ def aggregate(directory, manifest, cases):
     return summary
 
 
-def run(run_dir, stage, execute=False, max_requests=None, sender=None):
-    directory, manifest, cases, prompts = load_run(run_dir)
+def run(run_dir, stage, execute=False, max_requests=None, sender=None, allow_external=False):
+    directory, manifest, cases, prompts = load_run(run_dir, allow_external=allow_external)
     if stage not in ("generate", "judge", "aggregate", "evaluate"):
         raise ValueError("Stages: generate, judge, aggregate, evaluate")
     if not execute:
@@ -391,7 +387,9 @@ def run(run_dir, stage, execute=False, max_requests=None, sender=None):
                         write_json(directory / "progress.json", {"stage": step, "done": len(progress), "total": len(cases), "requests_this_run": client.count, "cases": progress})
                 if all(r["status"] == "completed" for r in progress):
                     manifest["completed_stages"] = list(dict.fromkeys([*manifest["completed_stages"], step]))
-            summary = aggregate(directory, manifest, cases)
+        # Accounting scans every saved request. Do it once after the requested
+        # stages, so network-volume reads never block generation -> judging.
+        summary = aggregate(directory, manifest, cases)
         if summary["coverage"]["complete"]:
             manifest["completed_stages"] = list(dict.fromkeys([*manifest["completed_stages"], "aggregate"]))
         success = summary["coverage"]["generated_cases"] == len(cases) if stage == "generate" else summary["coverage"]["complete"]

@@ -70,11 +70,7 @@ class Client:
 
     def call(self, directory, role_name, messages, parser=lambda text: text):
         role = self.config["roles"][role_name]
-        sampling = dict(role["sampling"])
-        template_kwargs = sampling.pop("chat_template_kwargs", None)
-        payload = {"model": role["model"], "messages": messages, "stream": False, **sampling}
-        if template_kwargs is not None:
-            payload["chat_template_kwargs"] = template_kwargs
+        payload = {"model": role["model"], "messages": messages, "stream": False, **role["sampling"]}
         fingerprint = object_hash({"role": role_name, "revision": role["revision"], "payload": payload})
         path = Path(directory) / (fingerprint + ".json")
         if path.exists():
@@ -84,6 +80,24 @@ class Client:
             # Re-validate rather than trust a cached parsed score.
             return cached["content"], parser(cached["content"])
         path.parent.mkdir(parents=True, exist_ok=True)
+        # A worker can exit after publishing a completed attempt and before
+        # publishing the compact success checkpoint.  Recover that durable
+        # evidence first; sending the same paid request again would be wrong.
+        for attempt_path in sorted(path.parent.glob(f"{fingerprint}.attempt-*.json")):
+            try:
+                saved = read_json(attempt_path)
+                if (saved.get("status") != "completed" or saved.get("request_hash") != fingerprint
+                        or object_hash(saved.get("request", {})) != object_hash(payload)):
+                    continue
+                content = saved.get("content")
+                parsed = parser(content)
+                restored = dict(saved, cache_source=str(attempt_path), restored_at=time.time(), parsed=parsed)
+                write_json(path, restored)
+                return content, parsed
+            except (OSError, ValueError, KeyError, TypeError, IndexError):
+                # A malformed/partial attempt remains evidence and is never
+                # promoted to a successful cache.
+                continue
         start_index = len(list(path.parent.glob(f"{fingerprint}.attempt-*.json")))
         for attempt in range(self.config["max_attempts"]):
             with self.lock:

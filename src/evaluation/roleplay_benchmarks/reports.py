@@ -60,7 +60,7 @@ def describe_run(directory):
     benchmark = manifest["benchmark"]
     if manifest.get("runner") == "public-method-v1":
         from .community import load_run, aggregate
-        directory, manifest, cases, _ = load_run(directory)
+        directory, manifest, cases, _ = load_run(directory, allow_external=True)
         summary = aggregate(directory, manifest, cases)
         actor = manifest["config"]["roles"]["actor"]
         return {"benchmark": benchmark, "actor": actor["model"], "model_revision": actor["revision"],
