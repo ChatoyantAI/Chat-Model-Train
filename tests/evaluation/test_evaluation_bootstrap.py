@@ -8,12 +8,20 @@ import tempfile
 import threading
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 from src.evaluation.roleplay_benchmarks import bootstrap, sources
 from scripts.evaluation.run_public_evaluation import main
 
 
 class BootstrapTests(unittest.TestCase):
+    def test_existing_nltk_assets_do_not_contact_download_index(self):
+        fixture = SimpleNamespace(data=SimpleNamespace(find=Mock(return_value='cached')), download=Mock())
+        with patch.dict('sys.modules', {'nltk': fixture}):
+            bootstrap.ensure_nltk()
+        fixture.download.assert_not_called()
+
     def test_init_preserves_fixed_settings_and_does_not_overwrite(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / 'model.json'

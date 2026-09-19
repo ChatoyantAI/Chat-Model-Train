@@ -20,7 +20,7 @@ def main():
             load_environment(args.env_file)
         install(args.venv, args.benchmarks, args.cache_from)
         return 0
-    except (ValueError, RuntimeError, OSError, subprocess.CalledProcessError) as exc:
+    except (ValueError, RuntimeError, OSError, subprocess.SubprocessError) as exc:
         print(f'Setup failed: {exc}', file=sys.stderr)
         return 2
 

@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import urllib.request
@@ -82,6 +83,23 @@ def prepare_assets(names, cache_from=None):
         load_templates()
 
 
+def ensure_nltk():
+    import nltk
+    resource = 'tokenizers/punkt_tab/english/'
+    try:
+        nltk.data.find(resource)
+        return
+    except LookupError:
+        pass
+    previous = socket.getdefaulttimeout()
+    try:
+        socket.setdefaulttimeout(60)
+        nltk.download('punkt_tab', quiet=True, raise_on_error=True)
+        nltk.data.find(resource)
+    finally:
+        socket.setdefaulttimeout(previous)
+
+
 def install(venv, names, cache_from=None):
     if sys.version_info < (3, 11):
         raise ValueError('Python 3.11+ is required')
@@ -104,9 +122,8 @@ def install(venv, names, cache_from=None):
     prepare_assets(names, cache_from)
     if 'coser' in selected(names):
         subprocess.run([str(python), '-c',
-            "import nltk; "
-            "nltk.download('punkt_tab', quiet=True, raise_on_error=True); "
-            "nltk.data.find('tokenizers/punkt_tab/english/')"], check=True)
+            "from src.evaluation.roleplay_benchmarks.bootstrap import ensure_nltk; ensure_nltk()"],
+            cwd=sources.ROOT, check=True, timeout=180)
     print(json.dumps({'status': 'ready', 'python': str(python), 'benchmarks': selected(names)}, indent=2))
 
 
