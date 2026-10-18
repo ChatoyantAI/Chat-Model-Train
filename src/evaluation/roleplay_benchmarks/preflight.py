@@ -80,6 +80,12 @@ def inspect_source(name):
         stats = {}
         for lang in ("en", "zh"):
             seed_ids = {row["id"] for row in _jsonl(base / f"data/{lang}/seeds.jsonl")}
+            missing = [f"data/{lang}/{kind}.jsonl" for kind in ("dialogues", "evaluations")
+                       if not (base / f"data/{lang}/{kind}.jsonl").is_file()]
+            if missing:
+                stats[lang] = {"available": False, "missing_files": missing,
+                               "reason": "Published model outputs are optional reference assets, not evaluation inputs."}
+                continue
             keys = set()
             counts = Counter()
             errors = []
@@ -91,7 +97,7 @@ def inspect_source(name):
                 keys.add(key)
                 counts[str(row["num_turns"])] += 1
             evaluation_keys = [(r["seed_id"], r["model_name"], r["run_id"]) for r in _jsonl(base / f"data/{lang}/evaluations.jsonl")]
-            stats[lang] = {"num_turns_histogram": dict(counts), "trajectory_count": len(keys), "structural_errors": errors,
+            stats[lang] = {"available": True, "num_turns_histogram": dict(counts), "trajectory_count": len(keys), "structural_errors": errors,
                            "evaluation_keys_match": len(evaluation_keys) == len(set(evaluation_keys)) and set(evaluation_keys) == keys}
         report["published_trajectory_audit"] = stats
         report["stages"] = []

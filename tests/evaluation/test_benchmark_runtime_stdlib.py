@@ -72,6 +72,9 @@ class RuntimeContractTests(unittest.TestCase):
         result = inspect_source("minimax")
         self.assertFalse(result["source_preflight_passed"])
         for language in ("en", "zh"):
+            if not result["published_trajectory_audit"][language]["available"]:
+                self.assertTrue(result["published_trajectory_audit"][language]["missing_files"])
+                continue
             self.assertTrue(result["published_trajectory_audit"][language]["evaluation_keys_match"])
             self.assertFalse(result["published_trajectory_audit"][language]["structural_errors"])
 
