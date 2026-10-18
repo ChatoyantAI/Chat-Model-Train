@@ -128,7 +128,8 @@ def install(venv, names, cache_from=None):
 
 
 def initialize(path, actor_model, actor_kind, benchmarks, actor_revision=None,
-               judge_model='zai-org/GLM-5.3-Flash'):
+               judge_model='zai-org/GLM-5.3-Flash', her_system_thinking=None,
+               assessment_mode='reviewed', coser_role_thoughts='include'):
     target = Path(path)
     if target.exists():
         raise ValueError('Configuration already exists; edit it or choose a new path')
@@ -137,6 +138,13 @@ def initialize(path, actor_model, actor_kind, benchmarks, actor_revision=None,
     config['benchmarks'] = names
     config['actor'].update(model=actor_model, kind=actor_kind,
                            revision=actor_revision or 'endpoint-alias:' + actor_model)
+    if assessment_mode == 'reviewed':
+        config['assessment'] = {'version': '20261018', 'coser_role_thoughts': coser_role_thoughts}
+    elif assessment_mode == 'legacy':
+        config.pop('assessment', None)
+        config['protocol_label'] = 'public-roleplay-unified-v1'
+    else:
+        raise ValueError('Choose reviewed or legacy assessment')
     for key in ('judge', 'simulator'):
         config[key].update(model=judge_model, revision='endpoint-alias:' + judge_model)
     if 'minimax' not in names:
@@ -146,6 +154,11 @@ def initialize(path, actor_model, actor_kind, benchmarks, actor_revision=None,
             if name not in names:
                 del container[name]
     from .unified import validate
+    if her_system_thinking is not None:
+        config.update(protocol='her-coser-official-v2',
+                      protocol_label='her-coser-official-v2-' + her_system_thinking,
+                      her_system_thinking=her_system_thinking,
+                      actor_output_validation='role-content-v2')
     validate(config)
     sources.write_json(target, config)
     return {'status': 'prepared-config', 'config': str(target.resolve()), 'benchmarks': names}

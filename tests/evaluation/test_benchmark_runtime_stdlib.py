@@ -7,7 +7,6 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from src.evaluation.roleplay_benchmarks.entry import entry
 from src.evaluation.roleplay_benchmarks.preflight import character_inputs, inspect_source
 from src.evaluation.roleplay_benchmarks.runtime import commands, patched_sources, prepare, run, validate_config
 from src.evaluation.roleplay_benchmarks.sources import ROOT, read_json
@@ -46,11 +45,6 @@ class RuntimeContractTests(unittest.TestCase):
         self.assertEqual(len(commands(config, "generate")), 1)
         for stage in ("prompts", "judge", "aggregate"):
             self.assertEqual(len(commands(config, stage)), 2)
-
-    def test_public_runner_requires_run_directory(self):
-        for benchmark in ("rmtbench", "minimax"):
-            with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
-                self.assertEqual(entry(benchmark, ["run", "--execute"]), 2)
 
     def test_config_rejects_credentials_and_unsafe_alias(self):
         config = read_json(ROOT / "configs/evaluation/roleplay_benchmarks/characterbench.example.json")

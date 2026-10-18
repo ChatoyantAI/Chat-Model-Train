@@ -86,7 +86,7 @@ def test_cli_help_needs_no_gpu_packages():
 
 
 def test_default_catalog_and_unknown_benchmark(capsys):
-    from src.evaluation.roleplay_benchmarks.cli import main
+    from src.evaluation.roleplay_benchmarks.sources_cli import main
     assert main(["catalog"]) == 0
     assert main(["catalog", "unknown"]) == 2
     assert "Unknown benchmark" in capsys.readouterr().err

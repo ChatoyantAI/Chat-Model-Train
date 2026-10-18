@@ -1,0 +1,146 @@
+{
+  "requests": 4,
+  "retries": 0,
+  "reported_estimated_cost_usd": 0.00037645000000000007,
+  "formal_scores_imported": 0,
+  "rows": [
+    {
+      "variant": "failed_real_old_omitted",
+      "event": "diagnostic_parameter_ab",
+      "diagnostic_only": true,
+      "started": 1789582371.9769745,
+      "model": "zai-org/GLM-5.3-Flash",
+      "source_failed_request": "/workspace/migrations/old-full-run-20260914/outputs/full-public-v1/transport-repair-v1/operations/4013be51bd974d92beaeeac4974397e2.request.json",
+      "status": 200,
+      "seconds": 86.814,
+      "usage": {
+        "prompt_tokens": 2414,
+        "total_tokens": 2868,
+        "completion_tokens": 454,
+        "estimated_cost": 0.00029455000000000003,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": null
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 38
+        }
+      },
+      "finish_reason": "stop",
+      "content_chars": 2034,
+      "content_prefix": "{\n    \"Storyline Quality\": {\n        \"flaws\": [\n            {\n                \"instance\": \"Nearly every turn begins with 'Then...' ('Then let it be loud', 'Then we'll make it roar', 'Then let's move', 'Then let's go', 'Then take it'), creating a mech",
+      "reasoning_chars": {
+        "reasoning": 0,
+        "reasoning_content": 175
+      }
+    },
+    {
+      "variant": "migration_false",
+      "time": 1789582292.4864585,
+      "event": "diagnostic_parameter_ab",
+      "model": "zai-org/GLM-5.3-Flash",
+      "diagnostic_only": true,
+      "status": 200,
+      "elapsed": 45.427,
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 64,
+        "total_tokens": 187,
+        "completion_tokens": 123,
+        "estimated_cost": 3.555e-05,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": null
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      },
+      "content_chars": 533,
+      "content_prefix": "The task: rate whether the reply follows the character. Character: a polite librarian. User asked where the history books are. Reply: \"Certainly, the history books are on the second floor.\"\n\nThe reply is polite (\"Certain",
+      "reasoning_chars": {
+        "reasoning": 0,
+        "reasoning_content": 0
+      },
+      "message_keys": [
+        "role",
+        "content",
+        "reasoning_content",
+        "name",
+        "tool_calls"
+      ]
+    },
+    {
+      "variant": "old_omitted",
+      "time": 1789582292.5272543,
+      "event": "diagnostic_parameter_ab",
+      "model": "zai-org/GLM-5.3-Flash",
+      "diagnostic_only": true,
+      "status": 200,
+      "elapsed": 0.993,
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 64,
+        "total_tokens": 88,
+        "completion_tokens": 24,
+        "estimated_cost": 1.08e-05,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": null
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      },
+      "content_chars": 75,
+      "content_prefix": "{\"score\": 2, \"reason\": \"Polite, helpful, and appropriate for a librarian.\"}",
+      "reasoning_chars": {
+        "reasoning": 0,
+        "reasoning_content": 0
+      },
+      "message_keys": [
+        "role",
+        "content",
+        "reasoning_content",
+        "name",
+        "tool_calls"
+      ]
+    },
+    {
+      "variant": "provider_none",
+      "time": 1789582293.6020224,
+      "event": "diagnostic_parameter_ab",
+      "model": "zai-org/GLM-5.3-Flash",
+      "diagnostic_only": true,
+      "status": 200,
+      "elapsed": 44.312,
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 64,
+        "total_tokens": 187,
+        "completion_tokens": 123,
+        "estimated_cost": 3.555e-05,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": null
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      },
+      "content_chars": 533,
+      "content_prefix": "The task: rate whether the reply follows the character. Character: a polite librarian. User asked where the history books are. Reply: \"Certainly, the history books are on the second floor.\"\n\nThe reply is polite (\"Certain",
+      "reasoning_chars": {
+        "reasoning": 0,
+        "reasoning_content": 0
+      },
+      "message_keys": [
+        "role",
+        "content",
+        "reasoning_content",
+        "name",
+        "tool_calls"
+      ]
+    }
+  ]
+}

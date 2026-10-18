@@ -8,7 +8,6 @@ from collections import deque
 from contextlib import contextmanager
 from concurrent.futures import Future
 import copy
-import errno
 import hashlib
 import inspect
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -25,41 +24,13 @@ import time
 from urllib import request, error
 import uuid
 
+from src.evaluation.roleplay_benchmarks.storage import atomic_text, atomic_json
+from src.evaluation.roleplay_benchmarks.frozen_backend import seed_coser_cache
+
 
 def digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False,
                                      separators=(",", ":")).encode()).hexdigest()
-
-
-def atomic_text(path, text):
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    # Retry the SAME bytes only, never the paid upstream request. Replacing a
-    # complete file is idempotent even when a prior rename/fsync was uncertain.
-    transient = {errno.EIO, errno.EAGAIN, errno.EINTR, errno.ETIMEDOUT, errno.ESTALE, errno.EBUSY}
-    for attempt in range(3):
-        try:
-            temp = path.with_name(path.name + "." + uuid.uuid4().hex + ".tmp")
-            with temp.open("w", encoding="utf-8") as handle:
-                handle.write(text)
-                handle.flush()
-                os.fsync(handle.fileno())
-            temp.replace(path)
-            if os.name != "nt":
-                descriptor = os.open(path.parent, os.O_RDONLY)
-                try:
-                    os.fsync(descriptor)
-                finally:
-                    os.close(descriptor)
-            return
-        except OSError as exc:
-            if exc.errno not in transient or attempt == 2:
-                raise
-            time.sleep(.2 * (attempt + 1))
-
-
-def atomic_json(path, value):
-    atomic_text(path, json.dumps(value, ensure_ascii=False) + "\n")
 
 
 class NotAdmitted(Exception):
@@ -419,33 +390,6 @@ def install(full, upstream_timeout=600, queue_timeout=30, checkpoints=None, budg
 
     full.Broker, full.serve_broker = GuardedBroker, serve
     return GuardedBroker
-
-
-def seed_coser_cache(base, case_index, attempt):
-    """Copy first successful partial checkpoints for the SAME case, append-only."""
-    base = Path(base)
-    target = base / f"attempt-{attempt}" / f"case-{case_index:04d}" / "request-cache"
-    target.mkdir(parents=True, exist_ok=True)
-    imported = []
-    for prior in sorted(base.glob("attempt-*"), key=lambda p: int(p.name.split("-")[1])):
-        if int(prior.name.split("-")[1]) >= attempt:
-            continue
-        for source in (prior / f"case-{case_index:04d}" / "request-cache").glob("*.json"):
-            dest = target / source.name
-            if dest.exists():
-                continue
-            try:
-                value = json.loads(source.read_text(encoding="utf-8"))
-            except (ValueError, OSError):
-                continue
-            if not isinstance(value.get("content"), str) or not value["content"].strip():
-                continue
-            with dest.open("xb") as handle:
-                handle.write(source.read_bytes())
-            imported.append({"source": str(source), "destination": str(dest),
-                             "sha256": hashlib.sha256(source.read_bytes()).hexdigest()})
-    atomic_json(target.parent / ("cache-import-" + uuid.uuid4().hex + ".json"), imported)
-    return len(imported)
 
 
 def valid_journal_response(journal, payload, parser, scope=None, legacy_names=None):

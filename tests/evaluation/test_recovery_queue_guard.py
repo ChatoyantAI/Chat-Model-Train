@@ -49,6 +49,16 @@ def response(text="2", finish="stop"):
         "usage": {"cost": .002, "prompt_tokens": 100, "completion_tokens": 1}}
 
 
+def saved_legacy_index(journal, names):
+    """Historical index fixture; the retired migration CLI is not a test dependency."""
+    directory = Path(journal) / 'responses'
+    path = Path(journal) / 'legacy-response-index-v1.json'
+    atomic_json(path, {'format': 1, 'directory': str(directory.resolve()),
+                       'mtime_ns': directory.stat().st_mtime_ns,
+                       'names': names, 'names_sha256': digest(names)})
+    return path
+
+
 class TransportTests(unittest.TestCase):
     def test_more_producers_do_not_exceed_shared_upstream_limit(self):
         full = SimpleNamespace(Broker=BrokerContract, ACTORS={'gemma': 'gemma'}, JUDGE='judge', model_guard=lambda url: None)
@@ -73,11 +83,10 @@ class TransportTests(unittest.TestCase):
         self.assertAlmostEqual(broker.cost, .016)
 
     def test_legacy_index_replays_success_without_negative_legacy_stats(self):
-        from build_legacy_response_index import build
         key = transport_key(self.payload)
         directory = self.broker.journal / 'responses'
         atomic_json(directory / (key + '.json'), {'payload': normalize_payload(self.payload), 'response': response()})
-        build(self.broker.journal)
+        saved_legacy_index(self.broker.journal, [key + '.json'])
         names = load_legacy_response_names(self.broker.journal)
         exists = Path.exists
         def no_legacy_stat(path):
@@ -94,10 +103,9 @@ class TransportTests(unittest.TestCase):
             load_legacy_response_names(self.broker.journal)
 
     def test_legacy_index_detects_missing_names_from_corruption(self):
-        from build_legacy_response_index import build
         directory = self.broker.journal / 'responses'
         atomic_json(directory / ('a' * 64 + '.json'), {})
-        index = build(self.broker.journal)
+        index = saved_legacy_index(self.broker.journal, ['a' * 64 + '.json'])
         value = json.loads(index.read_text())
         value['names'] = []
         atomic_json(index, value)

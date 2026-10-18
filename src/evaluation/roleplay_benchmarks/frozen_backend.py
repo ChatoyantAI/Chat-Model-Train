@@ -4,7 +4,6 @@ The hash-locked evaluator and CoSER adapter are shipped in the repository.
 There is no dependency on a migration directory or a model deployment path.
 """
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from contextlib import contextmanager
 import hashlib
 import importlib.util
 import json
@@ -18,7 +17,7 @@ import uuid
 import statistics
 
 from .sources import ROOT, read_json, registry, write_json
-from scripts.evaluation.recovery_queue_guard import atomic_json, seed_coser_cache
+from .storage import atomic_json
 
 FROZEN = ROOT / 'scripts/evaluation/frozen_public_v1'
 HASHES = {'run_four_benchmark_full.py': 'f4956dc77a7f524483f070cf82f4962f18003e56f1fa8fb321d6820059b6c77c',
@@ -26,33 +25,16 @@ HASHES = {'run_four_benchmark_full.py': 'f4956dc77a7f524483f070cf82f4962f18003e5
           'run_rmt45_long_migration.py': 'fa1cc6cdd12db35fa09c1ddeba5051b087dac9c21dbf1102c4db8e6287db9926'}
 
 
-@contextmanager
-def public_protocol():
-    from . import community
+def long_cases(config, base):
+    """Load the byte-locked historical RMT case builder without global patches."""
     path = FROZEN / 'run_rmt45_long_migration.py'
     if hashlib.sha256(path.read_bytes()).hexdigest() != HASHES[path.name]:
         raise ValueError('Frozen RMT extension changed')
     spec = importlib.util.spec_from_file_location('rmt45_protocol', path)
     extension = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(extension)
-    validate, build = community.validate, community.build_cases
-    def compatible(config):
-        if config.get('layout') == 'paper_four_blocks':
-            if config.get('version') != 'claude45' or config.get('repeats') != 2:
-                raise ValueError('Frozen long RMT uses claude45 and two repetitions')
-            return validate({**config, 'layout': 'mixed_four_blocks'})
-        return validate(config)
-    community.validate = compatible
-    def cases(config, base):
-        if config.get('layout') != 'paper_four_blocks':
-            return build(config, base)
-        rows = extension.long_cases(config, base)
-        return rows[:config['limit_cases']] if config.get('limit_cases') else rows
-    community.build_cases = cases
-    try:
-        yield
-    finally:
-        community.validate, community.build_cases = validate, build
+    rows = extension.long_cases(config, base)
+    return rows[:config['limit_cases']] if config.get('limit_cases') else rows
 
 
 def load(config):
@@ -79,8 +61,6 @@ def load(config):
         return result
 
     full.config = runtime_config
-    full.ThreadPoolExecutor = lambda max_workers=32, **kw: ThreadPoolExecutor(
-        max_workers=config.get('concurrency', {}).get('benchmarks', {}).get('characterbench', 32), **kw)
     return full
 
 
@@ -133,9 +113,39 @@ def prepare(config, directory, benchmark):
         text = agent.read_text(encoding="utf-8")
         lines = [line for line in text.splitlines(True) if not line.startswith(('from langchain.', 'from langchain_community.'))]
         agent.write_text('Embeddings = object\n' + ''.join(lines), encoding='utf-8')
+        if config.get('protocol') == 'her-coser-format-v1':
+            # HER evaluates role thoughts, while recipients cannot see them.
+            # Patch only the isolated, hashed worker copy, never vendor/frozen code.
+            from .her_coser import patch_judge_source
+            main_path = target / 'gca_evaluation/main.py'
+            main_text = patch_judge_source(main_path.read_text(encoding='utf-8'))
+            main_path.write_text(main_text, encoding='utf-8')
+            utils_path = target / 'gca_evaluation/utils.py'
+            with utils_path.open('a', encoding='utf-8') as handle:
+                handle.write('\n# HER recipient visibility, including multiline role thoughts.\n'
+                             'from src.evaluation.roleplay_benchmarks.her_coser import '
+                             'hide_inner_thoughts as remove_inner_thoughts\n')
         adapters = root / 'adapters'
         adapters.mkdir(exist_ok=True)
         shutil.copyfile(FROZEN / 'coser_adapter.py', adapters / 'coser_adapter.py')
+        if config.get('protocol') == 'her-coser-official-v2':
+            from .her_official import patch_main, patch_adapter
+            main_path = target / 'gca_evaluation/main.py'
+            main_path.write_text(patch_main(main_path.read_text(encoding='utf-8'),
+                                          config['her_system_thinking']), encoding='utf-8')
+            adapter_path = adapters / 'coser_adapter.py'
+            adapter_path.write_text(patch_adapter(adapter_path.read_text(encoding='utf-8')), encoding='utf-8')
+        if config.get('assessment'):
+            from .assessment import patch_main, patch_agent
+            main_path = target / 'gca_evaluation/main.py'
+            main_path.write_text(patch_main(main_path.read_text(encoding='utf-8'),
+                config['assessment']['coser_role_thoughts']), encoding='utf-8')
+            agent.write_text(patch_agent(agent.read_text(encoding='utf-8')), encoding='utf-8')
+            # Both native and HER recipients must hide multiline private thoughts.
+            utils_path = target / 'gca_evaluation/utils.py'
+            with utils_path.open('a', encoding='utf-8') as handle:
+                handle.write('\nfrom src.evaluation.roleplay_benchmarks.her_coser import '
+                             'hide_inner_thoughts as remove_inner_thoughts\n')
         total = len(read_json(target / 'data/test/test_set.json'))
         selected = options.get('case_ids', list(range(min(total, options.get('limit_cases') or total))))
         if not selected or len(set(selected)) != len(selected) or any(type(i) is not int or not 0 <= i < total for i in selected):
@@ -144,28 +154,40 @@ def prepare(config, directory, benchmark):
         files = ['coser-cases.json', 'adapters/coser_adapter.py'] + [
             str(p.relative_to(root)).replace('\\', '/') for p in target.rglob('*') if p.is_file()]
         expected = len(selected)
-    return {'runner': 'frozen-gemma-glm-v1', 'expected': expected, 'vendor_revision': revision,
+    metadata = {'runner': config.get('protocol', 'frozen-gemma-glm-v1'), 'expected': expected, 'vendor_revision': revision,
             'frozen_sha256': HASHES, 'files': {p: hashlib.sha256((root / p).read_bytes()).hexdigest() for p in files}}
+    if benchmark == 'characterbench':
+        path = 'src/evaluation/roleplay_benchmarks/characterbench.py'
+        metadata['runtime_sources'] = {path: hashlib.sha256((ROOT / path).read_bytes()).hexdigest()}
+    if config.get('protocol') in ('her-coser-format-v1', 'her-coser-official-v2'):
+        paths = ['src/evaluation/roleplay_benchmarks/her_format.py',
+                 'src/evaluation/roleplay_benchmarks/her_coser.py',
+                 'src/evaluation/roleplay_benchmarks/endpoint_transport.py',
+                 'src/evaluation/roleplay_benchmarks/frozen_backend.py']
+        if config.get('protocol') == 'her-coser-official-v2':
+            paths += ['src/evaluation/roleplay_benchmarks/her_official.py',
+                      'src/evaluation/roleplay_benchmarks/benchmark_api.py']
+            paths += [str(p.relative_to(ROOT)).replace('\\', '/') for p in
+                      (ROOT / 'src/evaluation/roleplay_benchmarks/her_upstream').iterdir() if p.is_file()]
+        metadata['runtime_sources'] = {p: hashlib.sha256((ROOT / p).read_bytes()).hexdigest() for p in paths}
+    if config.get('assessment'):
+        from .assessment import contract
+        metadata['assessment'] = contract(config)
+        paths = ['src/evaluation/roleplay_benchmarks/assessment.py',
+                 'src/evaluation/roleplay_benchmarks/her_coser.py',
+                 'src/evaluation/roleplay_benchmarks/her_format.py',
+                 'src/evaluation/roleplay_benchmarks/her_upstream/prompts.py']
+        metadata.setdefault('runtime_sources', {}).update({p: hashlib.sha256((ROOT / p).read_bytes()).hexdigest() for p in paths})
+    return metadata
 
 
 def verify(directory, metadata):
+    for name, expected in metadata.get('runtime_sources', {}).items():
+        if hashlib.sha256((ROOT / name).read_bytes()).hexdigest() != expected:
+            raise ValueError('Prepared HER adapter changed: ' + name)
     for name, expected in metadata['files'].items():
         if hashlib.sha256((Path(directory) / name).read_bytes()).hexdigest() != expected:
             raise ValueError('Prepared benchmark input/source changed: ' + name)
-
-
-def character(config, root, sender, store):
-    full = load(config)
-    out = root / 'outputs/full-public-v1'
-    full.read = store.read
-    def write(path, value):
-        if Path(path).name == 'result.json' and Path(path).exists():
-            old = store.read(path)
-            if old.get('status') == 'failed':
-                store.write(Path(path).with_name('failure-' + uuid.uuid4().hex + '.json'), old)
-        store.write(path, value)
-    full.write = write
-    return full.run_character(root, out, 'candidate', sender)
 
 
 def coser(config, root, port, sender, store):
@@ -236,3 +258,30 @@ def worker(root, case, attempt, port):
     import coser_adapter
     coser_adapter.HELPER = config['judge']['model']
     full.coser_worker(SimpleNamespace(root=root, model='candidate', case=case, attempt=attempt, port=port))
+
+
+def seed_coser_cache(base, case_index, attempt):
+    """Copy first successful partial checkpoints for the SAME case, append-only."""
+    base = Path(base)
+    target = base / f"attempt-{attempt}" / f"case-{case_index:04d}" / "request-cache"
+    target.mkdir(parents=True, exist_ok=True)
+    imported = []
+    for prior in sorted(base.glob("attempt-*"), key=lambda p: int(p.name.split("-")[1])):
+        if int(prior.name.split("-")[1]) >= attempt:
+            continue
+        for source in (prior / f"case-{case_index:04d}" / "request-cache").glob("*.json"):
+            dest = target / source.name
+            if dest.exists():
+                continue
+            try:
+                value = json.loads(source.read_text(encoding="utf-8"))
+            except (ValueError, OSError):
+                continue
+            if not isinstance(value.get("content"), str) or not value["content"].strip():
+                continue
+            with dest.open("xb") as handle:
+                handle.write(source.read_bytes())
+            imported.append({"source": str(source), "destination": str(dest),
+                             "sha256": hashlib.sha256(source.read_bytes()).hexdigest()})
+    atomic_json(target.parent / ("cache-import-" + uuid.uuid4().hex + ".json"), imported)
+    return len(imported)

@@ -1,6 +1,10 @@
 {
   "schema_version": 1,
-  "protocol_label": "public-roleplay-unified-v1",
+  "protocol_label": "public-roleplay-reviewed-20261018",
+  "assessment": {
+    "version": "20261018",
+    "coser_role_thoughts": "include"
+  },
   "benchmarks": [
     "characterbench",
     "coser",

@@ -12,7 +12,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 from src.evaluation.roleplay_benchmarks import bootstrap, sources
-from scripts.evaluation.run_public_evaluation import main
+from src.evaluation.roleplay_benchmarks.cli import main
 
 
 class BootstrapTests(unittest.TestCase):
@@ -29,11 +29,19 @@ class BootstrapTests(unittest.TestCase):
             config = sources.read_json(path)
             self.assertEqual(config['concurrency']['endpoints'], {'local': 16, 'remote': 96})
             self.assertEqual(config['actor']['sampling'], {'temperature': .7, 'max_tokens': 8192})
+            self.assertEqual(config['assessment'], {'version': '20261018', 'coser_role_thoughts': 'include'})
             self.assertNotIn('simulator', config)
             self.assertEqual(set(config['benchmark_options']), {'coser', 'characterbench'})
             with self.assertRaises(ValueError):
                 bootstrap.initialize(path, 'replacement', 'local', ['coser'])
             self.assertEqual(sources.read_json(path), config)
+
+    def test_explicit_legacy_init_preserves_old_protocol(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / 'legacy.json'
+            bootstrap.initialize(path, 'my-model', 'local', ['coser'], assessment_mode='legacy')
+            self.assertNotIn('assessment', sources.read_json(path))
+            self.assertEqual(sources.read_json(path)['protocol_label'], 'public-roleplay-unified-v1')
 
     def test_env_file_is_data_and_preserves_existing_environment(self):
         with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {'FIXED':'kept'}, clear=True):
@@ -52,9 +60,9 @@ class BootstrapTests(unittest.TestCase):
             argv = ['run', '--config', str(config), '--run-dir', str(directory)]
             def prepare(value, output):
                 sources.write_json(Path(output) / 'manifest.json', {'config': value})
-            with patch('scripts.evaluation.run_public_evaluation.bootstrap.check'), \
-                 patch('scripts.evaluation.run_public_evaluation.unified.prepare', side_effect=prepare) as prep, \
-                 patch('scripts.evaluation.run_public_evaluation.unified.run', return_value={'dry_run':True}) as run, \
+            with patch('src.evaluation.roleplay_benchmarks.cli.bootstrap.check'), \
+                 patch('src.evaluation.roleplay_benchmarks.cli.unified.prepare', side_effect=prepare) as prep, \
+                 patch('src.evaluation.roleplay_benchmarks.cli.unified.run', return_value={'dry_run':True}) as run, \
                  contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
                 self.assertEqual(main(argv), 0)
                 self.assertEqual(main(argv), 0)

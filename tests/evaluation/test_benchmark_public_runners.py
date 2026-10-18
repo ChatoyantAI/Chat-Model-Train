@@ -288,7 +288,7 @@ class FullFixtureTests(unittest.TestCase):
                 runner = community.run
                 if frozen:
                     source = inspect.getsource(runner).replace(
-                        "\n        summary = aggregate(directory, manifest, cases)\n",
+                        "\n        summary = aggregate(directory, manifest, cases, **io_options)\n",
                         "\n            summary = aggregate(directory, manifest, cases)\n")
                     path = Path(tmp) / "legacy_run.py"
                     path.write_text(source, encoding="utf-8")

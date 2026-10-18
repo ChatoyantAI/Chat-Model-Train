@@ -16,10 +16,11 @@ import tempfile
 import threading
 import time
 from urllib.error import HTTPError, URLError
+from urllib.request import Request, build_opener
 import uuid
 
 from . import benchmark_api as api
-from scripts.evaluation.recovery_queue_guard import atomic_json
+from .storage import atomic_json
 
 
 def identity(value):
@@ -86,7 +87,7 @@ class JournalSender:
             raise api.RequestLimit('Transport halted: ' + self.halt)
         try:
             if self.checkpoints:
-                self.checkpoints.writer.check()
+                self.checkpoints.check()
             self.ledger.ledger.check()
         except OSError:
             self.halt = 'background_writer_failed'
@@ -96,7 +97,7 @@ class JournalSender:
     def acceptable(body, parser):
         try:
             choice = body['choices'][0]
-            content = choice['message']['content']
+            content = choice['message']['content'] if 'message' in choice else choice['text']
             if choice['finish_reason'] not in ('stop', 'end_turn') or not isinstance(content, str) or not content.strip():
                 return False
             parser(content)
@@ -109,11 +110,62 @@ class JournalSender:
             raise RuntimeError('A stable sample scope is required for paid requests')
         return self.call(role, payload, timeout, self.context.scope, self.context.parser)
 
+    def cached_response(self, work, role, parser):
+        state_path = work / 'state.json'
+        if not state_path.exists():
+            return None
+        state = json.loads(state_path.read_text(encoding='utf-8'))
+        outcome_path = work / (state['operation_id'] + '.outcome.json')
+        if not outcome_path.exists():
+            raise api.CallFailed('Interrupted request quarantined; billing outcome unknown')
+        saved = json.loads(outcome_path.read_text(encoding='utf-8'))
+        if saved['status'] == 'uncertain':
+            raise api.CallFailed('Ambiguous transport failure quarantined; not re-dispatched')
+        if saved['status'] == 'response' and self.acceptable(saved['response'], parser):
+            if role['kind'] == 'local' and self.has_reasoning(saved['response']):
+                raise api.CallFailed('Local response contains reasoning; not accepted')
+            with self.lock:
+                self.replays += 1
+            return saved['response']
+        return None
+
+    def extended_actor_payload(self, role, outgoing, timeout):
+        """Use vLLM's exact chat token count; never shorten benchmark inputs."""
+        cap = role.get('sampling', {}).get('max_tokens', 8192)
+        if not (self.config.get('protocol') in ('her-coser-format-v1', 'her-coser-official-v2')
+                and role is self.config['actor'] and role['kind'] == 'local' and cap > 8192):
+            return outgoing
+        url, credential = api.endpoint(role)
+        if not url.endswith('/v1/chat/completions'):
+            raise ValueError('Extended actor token counting requires a vLLM /v1 endpoint')
+        count_payload = {k: outgoing[k] for k in ('model', 'messages', 'prompt', 'chat_template_kwargs') if k in outgoing}
+        if 'messages' in outgoing:
+            count_payload['add_generation_prompt'] = True
+        request = Request(url.removesuffix('/v1/chat/completions') + '/tokenize',
+                          data=json.dumps(count_payload).encode(),
+                          headers={'Content-Type': 'application/json', 'Authorization': 'Bearer ' + credential})
+        with build_opener(api.NoRedirect()).open(request, timeout=min(timeout, 60)) as response:
+            counted = json.load(response)
+        count = counted['count']
+        if type(count) is not int or count < 0:
+            raise ValueError('Invalid vLLM token count')
+        remaining = self.config['actor_context_window'] - count - 1
+        if remaining < 1:
+            raise ValueError('Actor input exceeds context window; input retained without truncation')
+        return {**outgoing, 'max_tokens': min(cap, remaining)}
+
     def call(self, incoming, payload, timeout, scope, parser=lambda x: x):
         role = self.role(incoming)
         outgoing = deepcopy(payload)
+        if (self.config.get('actor_prompt_format') in ('her-official-v1', 'her-no-system-v1')
+                and role is self.config['actor']):
+            from .her_coser import actor_prompt_payload
+            outgoing = actor_prompt_payload(outgoing, self.config['actor_prompt_format'])
         policies = self.config.get('thinking', {})
         outgoing.update(deepcopy(policies.get(role['model'], policies.get(role['kind'], {}))))
+        if self.config.get('protocol') == 'her-coser-official-v2' and role is self.config['actor']:
+            from .her_official import actor_payload
+            outgoing = actor_payload(outgoing, self.config['her_system_thinking'])
         # Cache identities include actual wire options, revision and endpoint.
         key = identity({'scope': scope, 'payload': outgoing, 'revision': role['revision'],
                         'url': api.endpoint(role)[0]})
@@ -121,21 +173,21 @@ class JournalSender:
             key_lock = self.key_locks.setdefault(key, threading.Lock())
         with key_lock:
             work = self.directory / 'transport-journal' / key[:2] / key
+            cached = self.cached_response(work, role, parser)
+            if cached is not None:
+                return cached
+            # Old successful 8192-token requests remain reusable. Only uncached
+            # or invalid actor generations use the explicitly increased budget.
+            expanded = self.extended_actor_payload(role, outgoing, timeout)
+            if expanded != outgoing:
+                outgoing = expanded
+                key = identity({'scope': scope, 'payload': outgoing, 'revision': role['revision'],
+                                'url': api.endpoint(role)[0]})
+                work = self.directory / 'transport-journal' / key[:2] / key
+                cached = self.cached_response(work, role, parser)
+                if cached is not None:
+                    return cached
             state_path = work / 'state.json'
-            if state_path.exists():
-                state = json.loads(state_path.read_text(encoding="utf-8"))
-                outcome_path = work / (state['operation_id'] + '.outcome.json')
-                if not outcome_path.exists():
-                    raise api.CallFailed('Interrupted request quarantined; billing outcome unknown')
-                saved = json.loads(outcome_path.read_text(encoding="utf-8"))
-                if saved['status'] == 'uncertain':
-                    raise api.CallFailed('Ambiguous transport failure quarantined; not re-dispatched')
-                if saved['status'] == 'response' and self.acceptable(saved['response'], parser):
-                    if role['kind'] == 'local' and self.has_reasoning(saved['response']):
-                        raise api.CallFailed('Local response contains reasoning; not accepted')
-                    with self.lock:
-                        self.replays += 1
-                    return saved['response']
             self.check()
             with self.limiter.slot(role['kind']):
                 self.check()
@@ -206,33 +258,25 @@ class JournalSender:
                     'peak': dict(self.peak), 'errors': dict(self.errors), 'halt': self.halt}
 
 
-@contextmanager
-def scoped_clients(sender, directory):
-    """Install only for this single-supervisor process; restore on every exit."""
-    previous_init, previous_call = api.Client.__init__, api.Client.call
-    root = Path(directory).resolve()
+class JournalClient(api.Client):
+    """Explicit request scoping; never replace Client methods process-wide."""
 
-    def init(self, config, sender_override=None, sleeper=time.sleep, **kwargs):
-        explicit = kwargs.pop('sender', sender_override)
-        previous_init(self, config, sender=explicit or sender, sleeper=sleeper, **kwargs)
+    def __init__(self, config, sender, directory, sleeper=time.sleep):
+        super().__init__(config, sender=sender, sleeper=sleeper)
+        self.journal = sender
+        self.root = Path(directory).resolve()
 
     def call(self, work, role_name, messages, parser=lambda x: x):
         role = self.config['roles'][role_name]
         payload = {'model': role['model'], 'messages': messages, 'stream': False, **role['sampling']}
-        sender.context.scope = identity({'directory': str(Path(work).resolve().relative_to(root)),
-                                         'role': role_name, 'revision': role['revision'], 'payload': payload})
-        sender.context.parser = parser
+        self.journal.context.scope = identity({'directory': str(Path(work).resolve().relative_to(self.root)),
+                                               'role': role_name, 'revision': role['revision'], 'payload': payload})
+        self.journal.context.parser = parser
         try:
-            return previous_call(self, work, role_name, messages, parser)
+            return super().call(work, role_name, messages, parser)
         finally:
-            del sender.context.scope
-            del sender.context.parser
-
-    api.Client.__init__, api.Client.call = init, call
-    try:
-        yield
-    finally:
-        api.Client.__init__, api.Client.call = previous_init, previous_call
+            del self.journal.context.scope
+            del self.journal.context.parser
 
 
 @contextmanager
@@ -250,7 +294,34 @@ def coser_server(sender):
                 if not scope:
                     raise ValueError('Missing sample scope')
                 role = next(r for r in sender.roles if r['model'] == payload['model'])
-                body = sender.call(role, payload, sender.config['timeout_seconds'], scope)
+                her_actor = (sender.config.get('protocol') in ('her-coser-format-v1', 'her-coser-official-v2')
+                             and payload['model'] == sender.config['actor']['model'])
+                if her_actor:
+                    from .her_coser import actor_response, valid_actor_content
+                    strict = sender.config.get('actor_output_validation') == 'role-content-v2'
+                    native = sender.config.get('actor_prompt_format') == 'coser-native-v1'
+                    body = sender.call(role, payload, sender.config['timeout_seconds'], scope,
+                                       parser=lambda text: valid_actor_content(text, strict=strict, native=native))
+                    # Sender has already persisted the unmodified upstream response.
+                    if sender.config.get('protocol') == 'her-coser-official-v2':
+                        from .her_official import deliver_actor_response
+                        body = deliver_actor_response(body, sender.config['her_system_thinking'])
+                    else:
+                        body = actor_response(body, strict=strict, native=native)
+                else:
+                    if sender.config.get('assessment'):
+                        from .assessment import judge_parser, role_content
+                        parser = role_content if payload['model'] == sender.config['actor']['model'] else judge_parser(payload)
+                        body = sender.call(role, payload, sender.config['timeout_seconds'], scope, parser=parser)
+                        # JournalSender validates replay candidates. Validate new
+                        # replies too, before the worker's small success cache.
+                        # Length finishes still reach the frozen token-limit
+                        # recovery path; never turn truncation into a score.
+                        choice = body['choices'][0]
+                        if choice.get('finish_reason') != 'length':
+                            parser(choice['message']['content'])
+                    else:
+                        body = sender.call(role, payload, sender.config['timeout_seconds'], scope)
             except HTTPError as exc:
                 status, body = exc.code, {'error': 'upstream_http_' + str(exc.code)}
             except Exception as exc:

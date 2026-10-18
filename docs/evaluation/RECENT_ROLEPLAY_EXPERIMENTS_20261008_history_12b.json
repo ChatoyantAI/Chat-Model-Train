@@ -1,0 +1,37 @@
+{
+  "source_thread_id": "01a0beb3-fd75-74b2-9772-cfff62f7af79",
+  "exported_on": "2026-10-08",
+  "evidence_type": "Historical assistant reports, not remote raw responses.",
+  "records": [
+    {
+      "turn_id": "01a0be2c-3182-7930-bfe2-9939c3953e77",
+      "started_at": 1789896962,
+      "completed_at": 1789897441,
+      "text": "已修复，并启动 **CoSER 全量 200 个场景**。\n\n- 裁判评分保留角色心理；其他角色看不到心理。\n- 使用原来的 CoSER 提示词，转换脚本只处理输出。\n- 本地并发 **16**，GLM API 并发上限 **96**。\n- 19 项测试通过；启动检查时 **42 次请求、24 次返回、0 个 HTTP 错误**。\n\n结果目录：\n`/tmp/roleplay-evaluation/gemma4-her-ckpt4000-coser-thoughts-v2-20260920`\n\n修复已提交：本地 `e866414`，远端 `4c4d609`。本次单独标记为评分修复版，尚未跑完。"
+    },
+    {
+      "turn_id": "01a0bafc-ba35-7183-a366-a2cb16639265",
+      "started_at": 1789843520,
+      "completed_at": 1789843582,
+      "text": "**你没记错，旧版确实关闭了 thinking。我刚才没区分旧版和新版，说得不准确。**\n\n我刚核对了远端正在运行的任务：\n\n| 版本 | 原生 thinking 设置 | HER 思考文本 |\n|---|---|---|\n| 旧版训练／旧 checkpoint 兼容路径 | `False` | 仍然保留并训练 |\n| 后来的标准版，以及当前 `standard_dynamic_v1` | 数据预处理使用 `True` | 同样保留并训练 |\n\n当前任务实际读取的数据清单中明确记录：\n\n```json\n\"format\": {\n  \"enable_thinking\": true\n}\n```\n\n证据在远端：\n`/root/local-cache/her-standard-20260919-v1/data/split.json`\n\n所以，**后来标准化训练时，这个参数确实发生了变化，并非一直没开。** 这个变化不能用“HER 论文要求”来解释；论文要求学习思考文本，不代表必须开启 Gemma 的原生 thinking 模板。\n\n另外，`False` 也不会自动删除数据里的 `<system_thinking>`，因此之前“关闭原生 thinking，但仍监督 HER 思考内容”是可以同时成立的。这次我只做了检查，没有修改或重启训练。"
+    },
+    {
+      "turn_id": "01a0b997-ea7a-7391-9840-daca166cd5b9",
+      "started_at": 1789820136,
+      "completed_at": 1789822464,
+      "text": "密钥已保存到 `/workspace/.secrets/evaluation.env`，没有写入仓库。统一入口已部署，代码提交：`7bc2bfd`。\n\n| 验证项目 | 结果 |\n|---|---|\n| CharacterBench | 8/8 完成 |\n| CoSER | 1 个完整场景完成 |\n| 真实 API 96 并发 | 96/96 成功，约 23 秒 |\n| 重复启动 | 新增调用 **0** |\n| 四套 benchmark 准备检查 | 全部通过 |\n\n本轮测试共 252 次调用，服务商返回的费用估算约 **$0.0086**。这是小样本验证，不是全量评测。\n\n远端固定入口：\n```bash\nbash /workspace/services/public-evaluation/run.sh\n```\n\n[完整运行说明](C:/Dev/repos/Chat-Model-Train/docs/evaluation/UNIFIED_PUBLIC_EVALUATION.md)已包含配置、异步写盘、缓存恢复和文件位置。以后换模型主要改配置。\n\nGLM 保留你指定的旧请求方式；它仍可能输出 reasoning，不能标记成“已关闭思考”。"
+    },
+    {
+      "turn_id": "01a0b39d-25c1-75a3-812c-618c30ff9c93",
+      "started_at": 1789719815,
+      "completed_at": 1789719867,
+      "text": "目前这次是 **Gemma 4 12B Roleplay SFT RegMix v2** 的 CharacterBench + CoSER 结果：\n\n| Benchmark | 英文 | 中文 | 有效完成 | 失败/缺失 |\n|---|---:|---:|---:|---:|\n| CharacterBench | **3.3221 / 5** | **3.3316 / 5** | 6469 / 6497 | 28 失败，3 条源数据无效 |\n| CoSER | — | — | 197 / 200 | 3 失败 |\n| CoSER 平均 | **29.4670 / 100** | — | 197 / 200 | — |\n\nCoSER 分维度：\n\n| 维度 | 分数 |\n|---|---:|\n| Storyline Consistency | 32.21 |\n| Anthropomorphism | 17.96 |\n| Character Fidelity | 29.41 |\n| Storyline Quality | 38.29 |\n\n和旧 Gemma 4 12B IT 对比：\n\n| Benchmark | 旧 Gemma IT | RegMix v2 | 变化 |\n|---|---:|---:|---:|\n| CharacterBench 英文 | 3.3681 | 3.3221 | -0.0460 |\n| CharacterBench 中文 | 3.7025 | 3.3316 | -0.3709 |\n| CoSER | 46.2425 | 29.4670 | -16.7755 |\n\n所以目前的现象很明确：**CharacterBench 只是小幅下降，主要问题集中在 CoSER。** CoSER 中尤其是拟人性、角色忠实度和剧情质量下降明显。\n\n这次 RegMix v2 目前没有跑 MiniMax 和 RMTBench，因此不能把它当作四套完整结果。详细部署和结果路径记录在 [GEMMA4_REGMIX_V2_PUBLIC_20260918.md](C:/Dev/repos/Chat-Model-Train/docs/evaluation/GEMMA4_REGMIX_V2_PUBLIC_20260918.md:1)。"
+    },
+    {
+      "turn_id": "01a0b31e-d8a4-78c2-9b5e-8e157db3b735",
+      "started_at": 1789711538,
+      "completed_at": 1789711674,
+      "text": "主体已经跑完，当前没有评测进程和在途请求。状态是 `finished_partial`：\n\n| 评测 | 结果 |\n|---|---:|\n| CharacterBench | 6,469 / 6,497 完成 |\n| CharacterBench 失败 | 28 条 |\n| CharacterBench 源数据无效 | 3 条 |\n| CoSER | 197 / 200 完成 |\n| CoSER 失败 | 3 个场景 |\n\n结果和账本在：\n\n`/dev/shm/roleplay-evaluation/gemma4-regmix-v2-public-20260918/outputs/full-public-v1`\n\n当前累计费用约 **$0.95385885**。CharacterBench 英文宏平均 **3.3221**，中文宏平均 **3.3316**；CoSER 平均 **29.4670**。\n\n失败样本都已保留证据，没有 502、503 或未知收费请求。"
+    }
+  ]
+}

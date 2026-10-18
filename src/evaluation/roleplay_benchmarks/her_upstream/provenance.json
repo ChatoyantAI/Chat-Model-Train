@@ -1,0 +1,9 @@
+{
+  "repository": "https://github.com/cydu24/HER",
+  "revision": "1e5fd856b9e23d3af41445e3c4ca734e24e012ef",
+  "path": "eval_code/benchmarks/multi_turn/coser",
+  "sha256": {
+    "prompts.py": "2e7db669eac22e017bd770bfbc4a32ab6a3059992e1c215ac78cfbdef4d96f14",
+    "utils.py": "3f59b108c90125ca7196b12c92783b9367a7833567fbed7a156b884e49b9e3f5"
+  }
+}

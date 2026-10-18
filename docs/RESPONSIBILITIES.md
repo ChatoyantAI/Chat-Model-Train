@@ -10,7 +10,7 @@
 |---|---|---|---|---|---|
 | Data | `src/data/`, `data/`, `configs/data/`, `tests/data/` | 待认领 | 待认领 | 数据契约、抽取、清洗、版本、manifest、质量校验 | 待认领 |
 | Training | `src/training/`, `configs/training/`, `tests/training/` | 待认领 | 待认领 | 训练入口、配置、恢复、日志、checkpoint 产物契约 | 待认领 |
-| Evaluation | `src/evaluation/`, `configs/evaluation/`, `tests/evaluation/` | 待认领 | 待认领 | benchmark、推理、指标、Judge、报告与回归门槛；公开角色扮演基准下载与协议适配 | 统一端点评测入口与独立安装已验证；66项回归通过；小样本及真实96并发验证通过，非全量官方复现；见统一运行说明 |
+| Evaluation | `src/evaluation/`, `configs/evaluation/`, `tests/evaluation/` | 待认领 | 待认领 | benchmark、推理、指标、Judge、报告与回归门槛；公开角色扮演基准下载与协议适配 | 统一端点评测入口、协议审查和分层整理；147项离线回归通过，覆盖缓存重放、并发与异步存储；历史真实96并发验证见运行记录，非全量官方复现 |
 | Common | `src/common/`, `tests/common/` | 待认领 | 待认领 | 稳定的跨模块公共类型、配置、日志与 I/O 能力 | 待认领 |
 | Tooling | `scripts/`, 仓库级开发工具 | 待认领 | 待认领 | 本地入口、检查脚本、开发体验 | 待认领 |
 | Repository governance | `README.md`, `CONTRIBUTING.md`, `.github/`, `docs/` | 待认领 | 待认领 | 结构规范、协作流程、模板和文档一致性 | 待认领 |

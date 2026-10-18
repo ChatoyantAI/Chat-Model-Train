@@ -59,6 +59,47 @@ class TransportTests(unittest.TestCase):
         self.assertEqual(summary['requests'], 1)
         self.assertEqual(summary['models']['fixture']['provider_cost_usd'], .01)
 
+    def test_extended_actor_reuses_success_and_retries_truncation_under_new_wire_key(self):
+        self.role.update(kind='local', sampling={'max_tokens': 8192})
+        judge = {**self.role, 'model': 'judge', 'kind': 'remote'}
+        self.config.update(actor=self.role, judge=judge, protocol='her-coser-format-v1', actor_context_window=32768)
+        self.sender = JournalSender(self.config, EndpointLimiter({'local': 64, 'remote': 48}), self.ledger, self.tmp.name)
+        self.payload['max_tokens'] = 8192
+        truncated = self.body('partial'); truncated['choices'][0]['finish_reason'] = 'length'
+        with patch.object(api, 'transport', side_effect=[self.body('old success'), truncated]):
+            self.call('success'); self.call('truncated')
+        self.role['sampling']['max_tokens'] = 16384
+        with patch.object(self.sender, 'extended_actor_payload', return_value={**self.payload, 'max_tokens': 16384}) as expand, \
+                patch.object(api, 'transport', return_value=self.body('new complete')) as http:
+            self.assertEqual(self.call('success')['choices'][0]['message']['content'], 'old success')
+            expand.assert_not_called()
+            self.call('truncated'); self.call('truncated')
+            self.assertEqual(http.call_count, 1)
+            self.assertEqual(http.call_args.args[1]['max_tokens'], 16384)
+        outcomes = [json.loads(p.read_text()) for p in Path(self.tmp.name).rglob('*.outcome.json')]
+        self.assertEqual(len(outcomes), 3)
+        self.assertEqual(sum(o['response']['choices'][0]['finish_reason'] == 'length' for o in outcomes), 1)
+
+    def test_extended_actor_counts_exact_template_and_preserves_input(self):
+        self.role.update(kind='local', sampling={'max_tokens': 16384})
+        self.config.update(protocol='her-coser-format-v1', actor_context_window=32768)
+        payload = {**self.payload, 'max_tokens': 8192, 'chat_template_kwargs': {'enable_thinking': False}}
+        class Reply(io.BytesIO):
+            pass
+        with patch('src.evaluation.roleplay_benchmarks.endpoint_transport.build_opener') as opener:
+            opener.return_value.open.return_value = Reply(b'{"count":20000}')
+            result = self.sender.extended_actor_payload(self.role, payload, 1200)
+            sent = json.loads(opener.return_value.open.call_args.args[0].data)
+            self.assertEqual(sent['messages'], payload['messages'])
+            self.assertEqual(sent['chat_template_kwargs'], {'enable_thinking': False})
+            self.assertTrue(sent['add_generation_prompt'])
+            self.assertEqual(result['max_tokens'], 12767)
+            self.assertEqual(result['messages'], payload['messages'])
+            self.assertEqual(payload['max_tokens'], 8192)
+            opener.return_value.open.return_value = Reply(b'{"count":32768}')
+            with self.assertRaisesRegex(ValueError, 'input exceeds'):
+                self.sender.extended_actor_payload(self.role, payload, 1200)
+
     def test_ambiguous_response_quarantined_and_other_sample_runs(self):
         with patch.object(api, 'transport', side_effect=TimeoutError):
             with self.assertRaises(api.CallFailed): self.call()

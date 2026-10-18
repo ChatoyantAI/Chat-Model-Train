@@ -48,6 +48,23 @@ class UnifiedRunnerTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             unified.validate(value)
 
+    def test_extended_coser_actor_requires_explicit_local_context_window(self):
+        value = self.config()
+        value.update(protocol='her-coser-format-v1', benchmarks=['coser'], benchmark_options={'coser': {}})
+        value['concurrency']['benchmarks'] = {'coser': 128}
+        value['actor']['sampling']['max_tokens'] = 16384
+        with self.assertRaisesRegex(ValueError, 'actor_context_window'):
+            unified.validate(value)
+        value['actor_context_window'] = 32768
+        unified.validate(value)
+        value['judge']['sampling']['max_tokens'] = 16384
+        with self.assertRaises(ValueError):
+            unified.validate(value)
+        value['judge']['sampling']['max_tokens'] = 8192
+        value['actor']['kind'] = 'remote'
+        with self.assertRaises(ValueError):
+            unified.validate(value)
+
     def test_endpoint_limiter_is_shared_across_producers(self):
         limiter = unified.EndpointLimiter({"local": 2})
         active = peak = 0
@@ -103,6 +120,18 @@ class UnifiedRunnerTests(unittest.TestCase):
                 first = unified.run(run_dir, execute=True)
                 count = len(calls)
                 second = unified.run(run_dir, execute=True)
+                with unified.endpoint_ownership([value['actor'], value['judge']]):
+                    with self.assertRaisesRegex(RuntimeError, 'Another evaluation owns'):
+                        unified.run(run_dir, execute=True)
+                    independent = unified.run(run_dir, execute=True, independent_endpoints=True)
+                    self.assertEqual(independent['requests'], 0)
+                    self.assertEqual(read_json(run_dir / 'manifest.json')['endpoint_ownership_mode'], 'independent')
+                    (run_dir / '.run.lock').write_text('another supervisor')
+                    try:
+                        with self.assertRaisesRegex(ValueError, 'Run is locked'):
+                            unified.run(run_dir, execute=True, independent_endpoints=True)
+                    finally:
+                        (run_dir / '.run.lock').unlink()
             self.assertEqual(first["status"], "completed")
             self.assertEqual(second["requests"], 0)
             self.assertEqual(len(calls), count)
@@ -118,6 +147,36 @@ class UnifiedRunnerTests(unittest.TestCase):
             manifest = unified.prepare(config_path, run_dir)
             self.assertEqual(manifest["status"], "prepared")
             self.assertTrue((run_dir / "minimax" / "manifest.json").exists())
+
+    def test_reviewed_public_summary_and_report_agree_and_resume_without_calls(self):
+        from src.evaluation.roleplay_benchmarks.reports import describe_run
+        value = self.config()
+        value['assessment'] = {'version': '20261018', 'coser_role_thoughts': 'include'}
+        # A one-session smoke explicitly uses one repeat; formal defaults stay 3.
+        value['benchmark_options']['minimax']['repeats'] = 1
+        calls = []
+        def transport(role, payload, timeout):
+            calls.append(payload)
+            if 'Evaluate existing' in payload['messages'][0].get('content', ''):
+                from src.evaluation.roleplay_benchmarks.community_protocols import MINI_DIMS
+                return response(json.dumps({d: {'score': 80, 'reason': 'fixture'} for d in MINI_DIMS}))
+            return response()
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'TEST_URL': 'http://fixture', 'TEST_KEY': 'test'}):
+            directory = Path(tmp)/'run'
+            unified.prepare(value, directory)
+            with patch.object(unified.benchmark_api, 'transport', side_effect=transport):
+                result = unified.run(directory, execute=True)
+                count = len(calls)
+                repeated = unified.run(directory, execute=True)
+            self.assertEqual(result['status'], 'completed')
+            self.assertEqual(repeated['requests'], 0)
+            self.assertEqual(len(calls), count)
+            summary = read_json(directory/'minimax/summary.json')
+            self.assertEqual(summary['scores']['en']['complete_seeds'] + summary['scores']['zh']['complete_seeds'], 1)
+            self.assertTrue(summary['score_coverage']['complete'])
+            reported = describe_run(directory/'minimax')
+            self.assertEqual(reported['native_scores'], summary['scores'])
+            self.assertTrue(reported['eligible_for_comparison'])
 
     def test_character_uses_api_judge_and_preserves_frozen_sampling(self):
         value = self.config()
@@ -157,6 +216,21 @@ class UnifiedRunnerTests(unittest.TestCase):
             rows = read_json(directory / 'rmtbench/cases.json')
             self.assertEqual(len(rows), 1)
             self.assertGreater(len(rows[0]['turns']), 20)
+
+    def test_reviewed_rmt_report_accepts_pinned_long_protocol(self):
+        from src.evaluation.roleplay_benchmarks.reports import describe_run
+        value = self.config()
+        value['benchmarks'] = ['rmtbench']
+        value['concurrency']['benchmarks'] = {'rmtbench': 2}
+        value['benchmark_options'] = {'rmtbench': {'limit_cases': 1}}
+        value['assessment'] = {'version': '20261018', 'coser_role_thoughts': 'include'}
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)/'run'
+            unified.prepare(value, directory)
+            report = describe_run(directory/'rmtbench')
+            self.assertFalse(report['eligible_for_comparison'])
+            self.assertFalse(report['coverage']['complete'])
+            self.assertEqual(report['native_scores'], {'en': {}, 'zh': {}})
 
 
 if __name__ == "__main__":

@@ -2,11 +2,13 @@
 
 ## 从哪里看
 
-- 入口：`scripts/evaluation/run_public_evaluation.py`。
+- 导读：[`src/evaluation/roleplay_benchmarks/README.md`](../../src/evaluation/roleplay_benchmarks/README.md)。
+- 入口：`scripts/evaluation/run_public_evaluation.py` 是启动器，参数实现在包内 `cli.py`；也可用 `python -m src.evaluation.roleplay_benchmarks`。
 - 配置示例：`configs/evaluation/roleplay_benchmarks/unified.example.json`。
-- 编排、端点、缓存：`src/evaluation/roleplay_benchmarks/{unified,endpoint_transport,frozen_backend}.py`。
+- 配置、调度、请求：包内 `config.py`、`unified.py`、`endpoint_transport.py`。
+- benchmark：CharacterBench 在 `characterbench.py`，CoSER 在 `frozen_backend.py`，MiniMax/RMT 在 `community.py`。
 - 固定历史协议：`scripts/evaluation/frozen_public_v1/`。三份脚本按原字节哈希锁定，不修改。
-- 异步写入复用 `async_checkpoints.py`，独立费用进程复用 `process_accounting.py`。
+- 异步写入与独立费用进程的实现在包内 `storage.py`；原脚本导入路径为历史兼容保留。
 - 原生官方包装入口另见模块 README；统一入口的 CharacterBench 使用历史 GLM judge，不能混称 CharacterJudge 官方榜单成绩。
 
 模型部署与评测分离。更换模型只新建配置，指定模型 ID、版本、端点环境变量；不复制或修改 benchmark 代码。
@@ -14,11 +16,11 @@
 
 ## 从干净仓库启动
 
-当前可下载分支是 `codex/evaluation-portable`。主分支合并前请明确指定该分支。
+首次使用从 `main` 克隆。恢复旧任务时检出其 manifest 记录的 commit，避免混用协议或绕过代码哈希校验。
 Python 3.11+ 和 Git 是系统前置条件；无需 CUDA、torch 或 vLLM。以 Linux 为例：
 
 ```bash
-git clone --branch codex/evaluation-portable https://github.com/ChatoyantAI/Chat-Model-Train.git
+git clone --branch main https://github.com/ChatoyantAI/Chat-Model-Train.git
 cd Chat-Model-Train
 python3 scripts/evaluation/setup_public_evaluation.py --benchmarks characterbench coser
 ```
@@ -44,6 +46,9 @@ bash scripts/evaluation/run_public_evaluation.sh --env-file .local/evaluation.en
 ```
 
 `init` 只生成模型配置，默认 judge 为 GLM 5.3 Flash，可用 `--judge-model` 指定。
+新配置默认启用 `assessment.version=20261018`。原有配置不自动改变；需要复现历史协议时加 `--assessment legacy`。
+新 CoSER/HER 对照必须使用相同的 `--coser-role-thoughts include` 或 `exclude`，默认 `include`。
+它统一裁判看到的内容，不修改 actor 的原生/HER 提示格式。修正依据与限制见[评分审查](PROTOCOL_AUDIT_20261018.md)。
 角色端点在密钥文件中设置，本地和 API 使用同样的协议；URL 填 base URL，不附加 `/chat/completions`。
 `check --check-api` 只 GET `/models`，不产生付费补全；不提供模型列表的兼容服务可省略 `--check-api`。
 `run --config` 首次自动 prepare，以后原样运行就是恢复；已有目录若配置不一致会拒绝，避免混合不同模型结果。
@@ -52,6 +57,19 @@ bash scripts/evaluation/run_public_evaluation.sh --env-file .local/evaluation.en
 `--actor-revision` 应填写模型提交/训练 checkpoint 版本。省略时记录为 endpoint alias，不能当作不可变权重证明。
 CharacterBench/CoSER 固定 actor 温度0.7、helper温度0、max_tokens8192；默认 local16 / remote96。
 MiniMax、RMT 协议选项沿用已验证配置，不因清理代码调整。
+新评分将未完成的 MiniMax 重复/RMT 场景放入 `partial_scores`，`scores` 只使用完整单位；完整性见 `score_coverage`。
+MiniMax 快速测试若只选一条 session，应显式设 `repeats=1`；选择不足完整重复数时可以完成调用，但没有完整种子的 headline 分数。
+
+可不调用模型审查已保存的 CoSER JSON（支持嵌套在本地审查文件中的结果）：
+
+```bash
+python scripts/evaluation/run_public_evaluation.py audit-results \
+  --inputs /path/to/result.json /path/to/paired-cases.json \
+  --output /path/to/new-audit.json
+```
+
+审查输出包含输入哈希、空内容/角色名占位、缺失角色前缀、同角色台词精确重复、分数公式复算。
+这是诊断，不会自动扣分、修改结果、重新生成或发起 Judge 请求；输出文件必须是新文件。
 
 自定义安装目录可传 `setup ... --venv /本地路径`，随后设置 `EVALUATION_PYTHON=/该路径/bin/python`。
 网络盘 noexec 时，代码和数据可以持久化，但虚拟环境要装在本机可执行磁盘；换镜像后重跑安装命令。
@@ -113,6 +131,12 @@ CharacterBench 原始6500条中有3条英文输入无效，单独记录 source_i
 
 ## 清理边界
 
+2026-10-18 的整理将 CLI、配置和存储实现收回 `src/evaluation/roleplay_benchmarks/`；删除未被调用的旧 `entry.py`。
+当前主流程改为显式传入请求客户端和异步存储，移除三组全局函数替换；CharacterBench 运行逻辑从冻结版等价迁出，冻结原件保留。
+16 份模型实验配置移动到 `configs/evaluation/roleplay_benchmarks/historical/`，原始字节保持不变。
+既有缓存键和请求日志布局不变；已准备任务仍遵守原代码哈希，使用其记录版本恢复，不直接套用新代码或修改 manifest。
+历史报告、结果、未提交的其他实验代码未清除。下列内容是此前清理的历史记录。
+
 已移除按 Qwen/Gemma 模型命名的启动、部署、迁移和一次性恢复脚本及配套运行配置；Git 历史 `7bc2bfd` 保留原件。
 本地未提交的旧实验脚本移到 `.local/archive/evaluation-legacy-20260919/`，不再作为入口、不打入新发布。
 旧远端评测 release/重复脚本移到 `/workspace/archives/evaluation-legacy-20260919/`；请求缓存、模型、训练任务和原始结果保留。
@@ -121,6 +145,14 @@ CharacterBench 原始6500条中有3条英文输入无效，单独记录 source_i
 它们仍被当前入口引用，不是可随意删除的过时代码。底层原生协议检查和报告库用于审计，不再提供四个竞争的启动脚本。
 
 ## 已完成验证与边界
+
+2026-10-18 目录/依赖整理：147 项离线回归全部通过，包含本地 HTTP 并发、缓存重放、异步写入、独立费用进程、HER/CoSER 评分契约与旧缓存恢复。
+新增检查逐条比较迁出的 CharacterBench 与冻结版请求、重试及分数，并确认旧请求身份的原始响应可复用且新增调用为 0。
+16 份历史配置内容、三份冻结协议源码均保持不变。本次没有请求真实模型、产生 API 费用或更新远端服务。
+
+发布到 `main` 前，在独立 PR 工作区仅导入已提交的评测文件，初始化两个固定子模块，并通过安装器 `prepare_assets(..., cache_from=...)` 复用、核验公开数据缓存。再次执行全部 147 项回归，70.779 秒完成，0 失败、0 跳过；缓存不随 Git 提交。
+
+以下是此前真实 API 验证的记录：
 
 - 真实 CharacterBench 8条 + CoSER case0068完整场景：60请求、全部完成、0请求错误。再次运行新增0请求。
 - 独立GLM API探针：96并发、96/96有效、0失败、峰值96；约22.74秒，p50约2.79秒、p95约20.11秒。

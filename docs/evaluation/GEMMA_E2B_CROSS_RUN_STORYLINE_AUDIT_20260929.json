@@ -1,0 +1,204 @@
+{
+  "matched_scenes": 199,
+  "excluded": [
+    67
+  ],
+  "models": {
+    "full": {
+      "scores": {
+        "avg": 29.673994974874372,
+        "Storyline Consistency": 29.263819095477388,
+        "Anthropomorphism": 29.688442211055275,
+        "Character Fidelity": 26.876884422110553,
+        "Storyline Quality": 32.86683417085427
+      },
+      "actor_turns_mean": 17.14070351758794,
+      "words_per_actor_turn": 30.012899442978597,
+      "speech_words_per_turn": 8.185282908238053,
+      "thought_words_per_turn": 11.910876575784227,
+      "visible_words_per_turn": 18.10202286719437,
+      "speechless_turn_pct": 11.052477279390208,
+      "exact_speech_repeat_pct": 2.140134857812958,
+      "actor_turns": 3411,
+      "env_words_per_scene": 114.40201005025126,
+      "sq_zero_scenes": 23,
+      "sq_flaw_counts": {
+        "logical": 562,
+        "flow": 597,
+        "mixed": 1
+      },
+      "sq_severity_sums": {
+        "logical": 1944.0,
+        "flow": 1828.0,
+        "mixed": 4.0
+      },
+      "speaker_labelled_turns": 3411,
+      "total_actor_turns": 3411,
+      "scenes_at_20_turn_cap": 168
+    },
+    "it": {
+      "scores": {
+        "avg": 31.56281407035176,
+        "Storyline Consistency": 29.690954773869347,
+        "Anthropomorphism": 26.844221105527637,
+        "Character Fidelity": 29.22110552763819,
+        "Storyline Quality": 40.494974874371856
+      },
+      "actor_turns_mean": 12.658291457286433,
+      "words_per_actor_turn": 43.04724096863835,
+      "speech_words_per_turn": 11.583564906709011,
+      "thought_words_per_turn": 15.668916236601826,
+      "visible_words_per_turn": 27.37832473203652,
+      "speechless_turn_pct": 3.7316395394998016,
+      "exact_speech_repeat_pct": 1.7467248908296944,
+      "actor_turns": 2519,
+      "env_words_per_scene": 173.4070351758794,
+      "sq_zero_scenes": 7,
+      "sq_flaw_counts": {
+        "logical": 323,
+        "flow": 656,
+        "mixed": 0
+      },
+      "sq_severity_sums": {
+        "logical": 1038.0,
+        "flow": 2094.0,
+        "mixed": 0
+      },
+      "speaker_labelled_turns": 750,
+      "total_actor_turns": 2519,
+      "scenes_at_20_turn_cap": 94
+    },
+    "lora2": {
+      "scores": {
+        "avg": 27.917713567839197,
+        "Storyline Consistency": 25.881909547738694,
+        "Anthropomorphism": 28.110552763819097,
+        "Character Fidelity": 25.07035175879397,
+        "Storyline Quality": 32.608040201005025
+      },
+      "actor_turns_mean": 16.728643216080403,
+      "words_per_actor_turn": 28.761489936917993,
+      "speech_words_per_turn": 8.108741363772905,
+      "thought_words_per_turn": 10.946830880144187,
+      "visible_words_per_turn": 17.814659056773806,
+      "speechless_turn_pct": 13.036948032442174,
+      "exact_speech_repeat_pct": 1.5620306398317814,
+      "actor_turns": 3329,
+      "env_words_per_scene": 122.19597989949749,
+      "sq_zero_scenes": 29,
+      "sq_flaw_counts": {
+        "logical": 531,
+        "flow": 623,
+        "mixed": 0
+      },
+      "sq_severity_sums": {
+        "logical": 1873.0,
+        "flow": 1893.0,
+        "mixed": 0
+      },
+      "speaker_labelled_turns": 3329,
+      "total_actor_turns": 3329,
+      "scenes_at_20_turn_cap": 152
+    },
+    "lora1": {
+      "scores": {
+        "avg": 27.645100502512562,
+        "Storyline Consistency": 26.944723618090453,
+        "Anthropomorphism": 27.587939698492463,
+        "Character Fidelity": 23.751256281407034,
+        "Storyline Quality": 32.2964824120603
+      },
+      "actor_turns_mean": 17.165829145728644,
+      "words_per_actor_turn": 28.796838407494146,
+      "speech_words_per_turn": 7.2669789227166275,
+      "thought_words_per_turn": 11.763466042154567,
+      "visible_words_per_turn": 17.033372365339577,
+      "speechless_turn_pct": 13.495316159250585,
+      "exact_speech_repeat_pct": 2.019906323185012,
+      "actor_turns": 3416,
+      "env_words_per_scene": 105.85929648241206,
+      "sq_zero_scenes": 27,
+      "sq_flaw_counts": {
+        "logical": 521,
+        "flow": 610,
+        "mixed": 1
+      },
+      "sq_severity_sums": {
+        "logical": 1855.0,
+        "flow": 1921.0,
+        "mixed": 4.0
+      },
+      "speaker_labelled_turns": 3416,
+      "total_actor_turns": 3416,
+      "scenes_at_20_turn_cap": 163
+    },
+    "it_repeat2": {
+      "scores": {
+        "avg": 31.565326633165828,
+        "Storyline Consistency": 29.685929648241206,
+        "Anthropomorphism": 27.045226130653266,
+        "Character Fidelity": 28.34673366834171,
+        "Storyline Quality": 41.18341708542714
+      },
+      "actor_turns_mean": 12.301507537688442,
+      "words_per_actor_turn": 42.42279411764706,
+      "speech_words_per_turn": 11.29656862745098,
+      "thought_words_per_turn": 15.425245098039216,
+      "visible_words_per_turn": 26.997549019607842,
+      "speechless_turn_pct": 3.349673202614379,
+      "exact_speech_repeat_pct": 1.511437908496732,
+      "actor_turns": 2448,
+      "env_words_per_scene": 164.2110552763819,
+      "sq_zero_scenes": 6,
+      "sq_flaw_counts": {
+        "logical": 317,
+        "flow": 657,
+        "mixed": 0
+      },
+      "sq_severity_sums": {
+        "logical": 984.0,
+        "flow": 2105.0,
+        "mixed": 0
+      },
+      "speaker_labelled_turns": 817,
+      "total_actor_turns": 2448,
+      "scenes_at_20_turn_cap": 90
+    }
+  },
+  "paired_full_vs_it": {
+    "wins": 74,
+    "losses": 121,
+    "ties": 4,
+    "paired_mean_difference": -7.628140703517588,
+    "bootstrap_95_ci": [
+      -11.248743718592964,
+      -4.316582914572864
+    ],
+    "note": "Scene bootstrap only, not judge rerun or generation variance."
+  },
+  "training": {
+    "n": 325142,
+    "target_words_mean": 40.10476960835573,
+    "speech_words_mean": 15.271103087266487,
+    "no_speech_pct": 7.551777377269008,
+    "thought_words_mean": 14.31112867608614,
+    "assistant_messages_mean": 3.421111391330557,
+    "assistant_messages_max": 35,
+    "rows_with_history_pct": 77.53658401559933,
+    "counts": {
+      "no_speech": 24554,
+      "thought_words": 4653149,
+      "native_system_tag": 0,
+      "role_thought": 283051
+    },
+    "target_words_median": 36.0,
+    "target_words_p95": 74
+  },
+  "notes": [
+    "Speech extraction and tag counts are regex heuristics, not human semantic labels.",
+    "Flaws and severities are original GLM judgments, not independently verified truth.",
+    "Bootstrap covers scene sampling only.",
+    "Comparisons confound weights with actor/history/NSP protocols.",
+    "No new inference or judge calls were made."
+  ]
+}

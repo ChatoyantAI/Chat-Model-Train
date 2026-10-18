@@ -53,6 +53,10 @@ def endpoint(role):
 
 def transport(role, payload, timeout):
     url, key = endpoint(role)
+    if 'prompt' in payload:
+        if 'messages' in payload:
+            raise ValueError('Specify either a completion prompt or chat messages')
+        url = url.removesuffix('/chat/completions') + '/completions'
     req = request.Request(url, data=json.dumps(payload, ensure_ascii=False, allow_nan=False).encode(),
                           headers={"Content-Type": "application/json", "Authorization": "Bearer " + key})
     # No automatic redirection of credentials, including redirects on the same host.
