@@ -1,0 +1,39 @@
+{
+  "audit": "saved-coser-assessment-20261018",
+  "model_calls": 0,
+  "sources": [
+    {
+      "path": ".local/coser-storyline-pair-audit/paired-cases.json",
+      "sha256": "a80b405be0616b4a17a99ebe51da494ad1d61568b0f875dc61a06ad057270476"
+    },
+    {
+      "path": ".local/qwen-single27000-audit/audit.json",
+      "sha256": "c31bc80932d712a21608baa6083d2aa767b3d859afbede787defbe0e5c92945c"
+    },
+    {
+      "path": ".local/gemma-e2b-epoch2-snapshot-audit/case-0024-scored.json",
+      "sha256": "8df047ec27354765b2946b2433d0fc67d47e73a704732a6721f78fb0f6a43e5e"
+    }
+  ],
+  "unique_results": 65,
+  "cases": 65,
+  "counts": {
+    "empty_or_label_only_turns_cases": 9,
+    "empty_or_label_only_turns": 66,
+    "missing_leading_speaker_labels_cases": 53,
+    "missing_leading_speaker_labels": 452,
+    "exact_spoken_repeats_cases": 11,
+    "exact_spoken_repeats": 42,
+    "scoring_errors_cases": 0,
+    "scoring_errors": 0
+  },
+  "scope": "Selected saved artifacts only; not a representative sample of all runs.",
+  "limitations": "Checks saved judge views, not missing raw responses. Repetition is an exact-text diagnostic, not a new scoring rule.",
+  "upstream_her": {
+    "revision": "1e5fd856b9e23d3af41445e3c4ca734e24e012ef",
+    "verified_files": [
+      "prompts.py",
+      "utils.py"
+    ]
+  }
+}

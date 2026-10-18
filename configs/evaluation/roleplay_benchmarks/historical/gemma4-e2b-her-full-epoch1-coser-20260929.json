@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "protocol_label": "gemma4-e2b-her-full-epoch1-coser-official-nosystem-no-rp-20260929",
+  "benchmarks": [
+    "coser"
+  ],
+  "actor": {
+    "model": "gemma4-e2b-her-full-epoch1",
+    "revision": "full-checkpoint-10161-model-sha256:03c71d1dde7cb612de269d20fd166687154e957e16a3a2dcd36d7ba582b11e4f",
+    "base_url_env": "EVAL_8051_ACTOR_BASE_URL",
+    "api_key_env": "EVAL_8051_ACTOR_API_KEY",
+    "kind": "local",
+    "sampling": {
+      "temperature": 0.7,
+      "max_tokens": 16384
+    }
+  },
+  "judge": {
+    "model": "zai-org/GLM-5.3-Flash",
+    "revision": "provider-alias:zai-org/GLM-5.3-Flash",
+    "base_url_env": "EVAL_JUDGE_BASE_URL",
+    "api_key_env": "EVAL_JUDGE_API_KEY",
+    "kind": "remote",
+    "sampling": {
+      "temperature": 0.0,
+      "max_tokens": 8192
+    }
+  },
+  "thinking": {
+    "local": {
+      "chat_template_kwargs": {
+        "enable_thinking": false
+      }
+    },
+    "remote": {}
+  },
+  "concurrency": {
+    "endpoints": {
+      "local": 64,
+      "remote": 48
+    },
+    "benchmarks": {
+      "coser": 128
+    }
+  },
+  "max_attempts": 3,
+  "timeout_seconds": 1200,
+  "max_requests_per_run": 300000,
+  "storage": {
+    "checkpoint_limit": 256,
+    "checkpoint_workers": 4
+  },
+  "process_accounting": {
+    "limit": 512,
+    "batch_size": 128,
+    "batch_wait": 1.0
+  },
+  "benchmark_options": {
+    "coser": {}
+  },
+  "protocol": "her-coser-official-v2",
+  "actor_context_window": 65536,
+  "actor_output_validation": "role-content-v2",
+  "her_system_thinking": "without-system"
+}

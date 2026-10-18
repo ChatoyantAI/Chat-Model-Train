@@ -24,6 +24,9 @@ def protocol_id(manifest):
                    "prompts": manifest["prompts_sha256"], "cases": manifest["cases_sha256"],
                    "engine": manifest["engine_hashes"],
                    "helper_endpoints": {k: v for k, v in manifest.get("endpoint_fingerprints", {}).items() if k != "actor"}}
+        if manifest.get('assessment'):
+            payload['assessment'] = manifest['assessment']
+            payload['assessment_sha256'] = manifest['assessment_sha256']
         return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
     # Model identities differ intentionally; sampling/protocol settings must not.
     for key in ("actor_model", "actor_alias", "model_revision", "runtime_notes", "api_key_env"):
@@ -60,14 +63,15 @@ def describe_run(directory):
     benchmark = manifest["benchmark"]
     if manifest.get("runner") == "public-method-v1":
         from .community import load_run, aggregate
-        directory, manifest, cases, _ = load_run(directory)
+        directory, manifest, cases, _ = load_run(directory, allow_external=True)
         summary = aggregate(directory, manifest, cases)
         actor = manifest["config"]["roles"]["actor"]
         return {"benchmark": benchmark, "actor": actor["model"], "model_revision": actor["revision"],
                 "protocol_id": protocol_id(manifest), "status": manifest["status"], "run_dir": str(directory),
                 "native_scores": summary["scores"], "score_provenance": "local-public-method-reproduction",
                 "coverage": summary["coverage"], "score_files": {"summary.json": digest(directory / "summary.json")},
-                "eligible_for_comparison": summary["coverage"]["complete"] and "aggregate" in manifest["completed_stages"]}
+                "eligible_for_comparison": summary["coverage"]["complete"] and summary.get('score_coverage', {}).get('complete', True)
+                and "aggregate" in manifest["completed_stages"]}
     row = {"benchmark": benchmark, "actor": manifest["config"]["actor_model"],
            "model_revision": manifest["config"]["model_revision"], "protocol_id": protocol_id(manifest),
            "status": manifest["status"], "run_dir": str(directory), "native_scores": {}, "score_files": {}}

@@ -52,13 +52,9 @@ def validate(config):
             if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", role[key]):
                 raise ValueError("Use environment variable names, not credential values")
         sampling = role["sampling"]
-        if not isinstance(sampling, dict) or set(sampling) - {"temperature", "top_p", "seed", "max_tokens", "max_completion_tokens", "chat_template_kwargs"}:
+        if not isinstance(sampling, dict) or set(sampling) - {"temperature", "top_p", "seed", "max_tokens", "max_completion_tokens"}:
             raise ValueError("Unsupported sampling fields")
         for key, value in sampling.items():
-            if key == "chat_template_kwargs":
-                if value != {"enable_thinking": False}:
-                    raise ValueError("Only chat_template_kwargs.enable_thinking=false is supported")
-                continue
             if type(value) not in (int, float) or not math.isfinite(value):
                 raise ValueError("Sampling values must be finite numbers")
             if key in ("seed", "max_tokens", "max_completion_tokens") and type(value) is not int:
@@ -70,8 +66,10 @@ def validate(config):
         if "max_tokens" in sampling and "max_completion_tokens" in sampling:
             raise ValueError("Choose only one output token limit")
     if name == "rmtbench":
-        if config.get("version") not in ("claude35", "claude45") or config.get("layout") not in ("mixed_four_blocks", "single_blocks"):
+        if config.get("version") not in ("claude35", "claude45") or config.get("layout") not in ("mixed_four_blocks", "single_blocks", "paper_four_blocks"):
             raise ValueError("Choose RMT version and layout")
+        if config['layout'] == 'paper_four_blocks' and (config['version'] != 'claude45' or config['repeats'] != 2):
+            raise ValueError('Frozen long RMT uses claude45 and two repetitions')
     else:
         for key in ("generated_messages", "chunk_messages"):
             if type(config.get(key)) is not int or config[key] < 2 or config[key] % 2:
@@ -80,16 +78,20 @@ def validate(config):
             raise ValueError("prompt_file is required")
 
 
-def prepare(config_path, run_dir):
+def prepare(config_path, run_dir, allow_external=False):
     config = read_json(config_path)
     validate(config)
     name = config["benchmark"]
     spec = registry()[name]
     source = verify_one(name, spec)
     directory = Path(run_dir).resolve()
-    if directory.exists() or not directory.is_relative_to(ROOT / "outputs") or directory == ROOT / "outputs":
+    if directory.exists() or (not allow_external and not directory.is_relative_to(ROOT / "outputs")) or directory == ROOT / "outputs":
         raise ValueError("Use a new run directory under repository outputs/")
-    cases = build_cases(config, inside(ROOT, spec["path"]))
+    if name == 'rmtbench' and config['layout'] == 'paper_four_blocks':
+        from .frozen_backend import long_cases
+        cases = long_cases(config, inside(ROOT, spec['path']))
+    else:
+        cases = build_cases(config, inside(ROOT, spec["path"]))
     if not cases:
         raise ValueError("No cases selected")
     if name == "rmtbench":
@@ -142,9 +144,9 @@ def prepare(config_path, run_dir):
     return manifest
 
 
-def load_run(directory):
+def load_run(directory, allow_external=False):
     directory = Path(directory).resolve()
-    if directory == ROOT / "outputs" or not directory.is_relative_to(ROOT / "outputs"):
+    if directory == ROOT / "outputs" or (not allow_external and not directory.is_relative_to(ROOT / "outputs")):
         raise ValueError("Run directory must be under repository outputs/")
     manifest = read_json(directory / "manifest.json")
     if manifest.get("runner") != "public-method-v1":
@@ -158,10 +160,15 @@ def load_run(directory):
     for filename, expected in manifest["engine_hashes"].items():
         if digest(Path(__file__).with_name(filename)) != expected:
             raise ValueError("Runner implementation changed; prepare a new run")
+    if manifest.get('assessment'):
+        from . import assessment
+        if digest(Path(assessment.__file__)) != manifest.get('assessment_sha256'):
+            raise ValueError('Reviewed assessment changed; use the pinned implementation')
     return directory, manifest, read_json(directory / "cases.json"), read_json(directory / "prompts.json")
 
 
-def generate_case(case, config, prompts, directory, client):
+def generate_case(case, config, prompts, directory, client, *, store=None):
+    write = store.write if store is not None else write_json
     system = {"role": "system", "content": actor_system(case, prompts)}
     history = []
     output = directory / "trajectory.json"
@@ -170,7 +177,7 @@ def generate_case(case, config, prompts, directory, client):
             history.append({"role": "user", "content": turn["user"]})
             content, _ = client.call(directory / "requests", "actor", [system, *history])
             history.append({"role": "assistant", "content": content})
-            write_json(output, {"complete": False, "messages": history})
+            write(output, {"complete": False, "messages": history})
     else:
         scene = case["scene"]
         history = [{"role": "assistant", "content": scene["ai_prologue"]}, {"role": "user", "content": scene["initial_user_input"]}]
@@ -186,15 +193,15 @@ def generate_case(case, config, prompts, directory, client):
                     {"role": "user", "content": json.dumps({"dialogue": history}, ensure_ascii=False)}])
                 role = "user"
             history.append({"role": role, "content": content})
-            write_json(output, {"complete": False, "messages": history})
-    write_json(output, {"complete": True, "messages": history, "messages_sha256": object_hash(history)})
+            write(output, {"complete": False, "messages": history})
+    write(output, {"complete": True, "messages": history, "messages_sha256": object_hash(history)})
 
 
-def trajectory(case, config, directory):
+def trajectory(case, config, directory, *, store=None):
     file = directory / "trajectory.json"
     if not file.exists():
         return None
-    result = read_json(file)
+    result = store.read(file) if store is not None else read_json(file)
     expected = 2 * len(case["turns"]) if "scene" not in case else config["generated_messages"] + 2
     messages = result.get("messages", [])
     if not result.get("complete") or len(messages) != expected or result.get("messages_sha256") != object_hash(messages):
@@ -205,8 +212,11 @@ def trajectory(case, config, directory):
     return messages
 
 
-def judge_case(case, config, prompts, directory, client):
-    messages = trajectory(case, config, directory)
+def judge_case(case, config, prompts, directory, client, *, store=None):
+    if store is not None:
+        store.flush(Path(directory) / 'trajectory.json')
+    write = store.write if store is not None else write_json
+    messages = trajectory(case, config, directory, store=store)
     if messages is None:
         return {"status": "missing-generation", "id": case["id"]}
     result = {"id": case["id"], "status": "incomplete", "judgments": [], "errors": []}
@@ -228,14 +238,18 @@ def judge_case(case, config, prompts, directory, client):
             result["errors"].append({"key": key, "error": str(exc)})
             if isinstance(exc, RequestLimit):
                 break
-        write_json(directory / "judgments.json", result)
+        write(directory / "judgments.json", result)
     result["status"] = "completed" if len(result["judgments"]) == expected_judgments(case, config) else "incomplete"
     result["trajectory_sha256"] = object_hash(messages)
-    write_json(directory / "judgments.json", result)
+    write(directory / "judgments.json", result)
     return {"id": case["id"], "status": result["status"]}
 
 
-def aggregate(directory, manifest, cases):
+def aggregate(directory, manifest, cases, *, store=None):
+    if store is not None:
+        store.flush(directory)
+    read = store.read if store is not None else read_json
+    write = store.write if store is not None else write_json
     config = manifest["config"]
     by_language = {}
     total_valid = generated = completed = 0
@@ -248,11 +262,11 @@ def aggregate(directory, manifest, cases):
             messages = trajectory(case, config, work)
             generated += messages is not None
             file = work / "judgments.json"
-            data = read_json(file) if file.exists() else {}
+            data = read(file) if file.exists() else {}
             units = data.get("judgments", []) if messages is not None and data.get("trajectory_sha256") == object_hash(messages) else []
             # Reparse persisted raw text so invalid/missing scores are never zeros.
             valid = []
-            expected_units = ({key: (dim, index) for key, dim, index, _ in rmt_judge_jobs(case, messages, read_json(directory / "prompts.json"))} if messages and "scene" not in case
+            expected_units = ({key: (dim, index) for key, dim, index, _ in rmt_judge_jobs(case, messages, read(directory / "prompts.json"))} if messages and "scene" not in case
                               else {f"chunk-{i:04}": ("all", i) for i, *_ in mini_chunks(messages, config["chunk_messages"])} if messages else {})
             seen = set()
             for unit in units:
@@ -297,7 +311,7 @@ def aggregate(directory, manifest, cases):
     usage = defaultdict(float)
     attempts = failures = cost_observed = 0
     for file in (directory / "cases").glob("*/requests/*.attempt-*.json"):
-        item = read_json(file)
+        item = read(file)
         attempts += 1
         failures += item["status"] != "completed"
         for key in ("prompt_tokens", "completion_tokens", "total_tokens"):
@@ -321,16 +335,23 @@ def aggregate(directory, manifest, cases):
                "failed_attempts": failures, "attempts_with_reported_cost": cost_observed,
                "cost_note": "Cost is provider-reported only; absence means unknown, not zero. Timed-out requests can be billed without returning usage.",
                "partial_results": completed != len(cases), "protocol_choices": manifest["protocol_choices"]}
-    write_json(directory / "summary.json", summary)
+    if manifest.get('assessment'):
+        from .assessment import review_public_summary
+        summary = review_public_summary(summary, manifest, cases)
+    write(directory / "summary.json", summary)
     lines = [f"# {config['benchmark']} results", "", f"Protocol: {config['protocol_label']}", "",
              f"Completed cases: {completed}/{len(cases)}; valid judgments: {total_valid}/{summary['coverage']['expected_judgments']}", "",
              "Partial results exclude missing judgments (not zero scores). Compare full matched coverage.", "", "```json", json.dumps(by_language, ensure_ascii=False, indent=2), "```", ""]
+    if manifest.get('assessment'):
+        lines = ['# Reviewed public benchmark results', '', summary['score_basis'], '',
+                 'Partial results remain in summary.json; not a published leaderboard score.', '',
+                 '```json', json.dumps(summary['scores'], ensure_ascii=False, indent=2), '```', '']
     (directory / "summary.md").write_text("\n".join(lines), encoding="utf-8")
     return summary
 
 
-def run(run_dir, stage, execute=False, max_requests=None, sender=None):
-    directory, manifest, cases, prompts = load_run(run_dir)
+def run(run_dir, stage, execute=False, max_requests=None, sender=None, allow_external=False, *, store=None, client_factory=None):
+    directory, manifest, cases, prompts = load_run(run_dir, allow_external=allow_external)
     if stage not in ("generate", "judge", "aggregate", "evaluate"):
         raise ValueError("Stages: generate, judge, aggregate, evaluate")
     if not execute:
@@ -363,10 +384,13 @@ def run(run_dir, stage, execute=False, max_requests=None, sender=None):
     except FileExistsError:
         raise ValueError("Run already locked; if a process crashed, verify it stopped before removing .run.lock") from None
     os.close(descriptor)
-    client = Client(config, sender=sender)
+    client = client_factory(config) if client_factory is not None else Client(config, sender=sender)
+    write = store.write if store is not None else write_json
+    # Empty kwargs preserve the callable contract of historical recovery tools.
+    io_options = {'store': store} if store is not None else {}
     try:
         manifest["status"] = f"running-{stage}"
-        write_json(directory / "manifest.json", manifest)
+        write(directory / "manifest.json", manifest)
         stages = ["generate", "judge", "aggregate"] if stage == "evaluate" else [stage]
         for step in stages:
             if step != "aggregate":
@@ -375,23 +399,25 @@ def run(run_dir, stage, execute=False, max_requests=None, sender=None):
                     work.mkdir(parents=True, exist_ok=True)
                     try:
                         if step == "generate":
-                            generate_case(case, config, prompts, work, client)
+                            generate_case(case, config, prompts, work, client, **io_options)
                             result = {"id": case["id"], "status": "completed"}
                         else:
-                            result = judge_case(case, config, prompts, work, client)
+                            result = judge_case(case, config, prompts, work, client, **io_options)
                     except CallFailed as exc:
                         result = {"id": case["id"], "status": "failed", "error": str(exc)}
-                    write_json(work / f"{step}-status.json", result)
+                    write(work / f"{step}-status.json", result)
                     return result
                 progress = []
                 with ThreadPoolExecutor(max_workers=config["concurrency"]) as pool:
                     futures = [pool.submit(worker, case) for case in cases]
                     for future in as_completed(futures):
                         progress.append(future.result())
-                        write_json(directory / "progress.json", {"stage": step, "done": len(progress), "total": len(cases), "requests_this_run": client.count, "cases": progress})
+                        write(directory / "progress.json", {"stage": step, "done": len(progress), "total": len(cases), "requests_this_run": client.count, "cases": progress})
                 if all(r["status"] == "completed" for r in progress):
                     manifest["completed_stages"] = list(dict.fromkeys([*manifest["completed_stages"], step]))
-            summary = aggregate(directory, manifest, cases)
+        # Accounting scans every saved request. Do it once after the requested
+        # stages, so network-volume reads never block generation -> judging.
+        summary = aggregate(directory, manifest, cases, **io_options)
         if summary["coverage"]["complete"]:
             manifest["completed_stages"] = list(dict.fromkeys([*manifest["completed_stages"], "aggregate"]))
         success = summary["coverage"]["generated_cases"] == len(cases) if stage == "generate" else summary["coverage"]["complete"]
@@ -402,5 +428,9 @@ def run(run_dir, stage, execute=False, max_requests=None, sender=None):
         manifest["status"] = f"failed-{stage}"
         raise
     finally:
-        write_json(directory / "manifest.json", manifest)
-        lock.unlink()
+        try:
+            write(directory / "manifest.json", manifest)
+            if store is not None:
+                store.flush(directory)
+        finally:
+            lock.unlink()

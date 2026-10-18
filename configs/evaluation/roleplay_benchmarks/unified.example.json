@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "protocol_label": "public-roleplay-reviewed-20261018",
+  "assessment": {
+    "version": "20261018",
+    "coser_role_thoughts": "include"
+  },
+  "benchmarks": [
+    "characterbench",
+    "coser",
+    "minimax",
+    "rmtbench"
+  ],
+  "actor": {
+    "model": "REPLACE_WITH_ACTOR_MODEL",
+    "revision": "REPLACE_WITH_ACTOR_REVISION",
+    "base_url_env": "EVAL_ACTOR_BASE_URL",
+    "api_key_env": "EVAL_ACTOR_API_KEY",
+    "kind": "local",
+    "sampling": {
+      "temperature": 0.7,
+      "max_tokens": 8192
+    }
+  },
+  "judge": {
+    "model": "zai-org/GLM-5.3-Flash",
+    "revision": "REPLACE_WITH_JUDGE_REVISION",
+    "base_url_env": "EVAL_JUDGE_BASE_URL",
+    "api_key_env": "EVAL_JUDGE_API_KEY",
+    "kind": "remote",
+    "sampling": {
+      "temperature": 0.0,
+      "max_tokens": 8192
+    }
+  },
+  "simulator": {
+    "model": "zai-org/GLM-5.3-Flash",
+    "revision": "REPLACE_WITH_SIMULATOR_REVISION",
+    "base_url_env": "EVAL_JUDGE_BASE_URL",
+    "api_key_env": "EVAL_JUDGE_API_KEY",
+    "kind": "remote",
+    "sampling": {
+      "temperature": 0.7,
+      "max_tokens": 8192
+    }
+  },
+  "thinking": {
+    "local": {
+      "chat_template_kwargs": {
+        "enable_thinking": false
+      }
+    },
+    "remote": {}
+  },
+  "concurrency": {
+    "endpoints": {
+      "local": 16,
+      "remote": 96
+    },
+    "benchmarks": {
+      "characterbench": 32,
+      "coser": 32,
+      "minimax": 32,
+      "rmtbench": 32
+    }
+  },
+  "max_attempts": 3,
+  "timeout_seconds": 600,
+  "max_requests_per_run": 300000,
+  "storage": {
+    "checkpoint_limit": 256,
+    "checkpoint_workers": 4
+  },
+  "process_accounting": {
+    "limit": 512,
+    "batch_size": 128,
+    "batch_wait": 1.0
+  },
+  "benchmark_options": {
+    "characterbench": {},
+    "coser": {},
+    "minimax": {
+      "generated_messages": 100,
+      "chunk_messages": 20,
+      "limit_cases": null
+    },
+    "rmtbench": {
+      "version": "claude45",
+      "layout": "paper_four_blocks",
+      "limit_cases": null,
+      "repeats": 2,
+      "seed": 42
+    }
+  },
+  "protocol": "frozen-gemma-glm-v1"
+}

@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "protocol_label": "coser-pair-20260923-coser-native-v1",
+  "benchmarks": [
+    "coser"
+  ],
+  "actor": {
+    "model": "qwen3-0.6b-original",
+    "revision": "weights-sha256:f47f71177f32bcd101b7573ec9171e6a57f4f4d31148d38e382306f42996874b",
+    "base_url_env": "EVAL_8041_ACTOR_BASE_URL",
+    "api_key_env": "EVAL_8041_ACTOR_API_KEY",
+    "kind": "local",
+    "sampling": {
+      "temperature": 0.7,
+      "max_tokens": 16384
+    }
+  },
+  "judge": {
+    "model": "zai-org/GLM-5.3-Flash",
+    "revision": "provider-alias:zai-org/GLM-5.3-Flash",
+    "base_url_env": "EVAL_JUDGE_BASE_URL",
+    "api_key_env": "EVAL_JUDGE_API_KEY",
+    "kind": "remote",
+    "sampling": {
+      "temperature": 0.0,
+      "max_tokens": 8192
+    }
+  },
+  "thinking": {
+    "local": {
+      "chat_template_kwargs": {
+        "enable_thinking": false
+      }
+    },
+    "remote": {}
+  },
+  "concurrency": {
+    "endpoints": {
+      "local": 64,
+      "remote": 48
+    },
+    "benchmarks": {
+      "coser": 128
+    }
+  },
+  "max_attempts": 3,
+  "timeout_seconds": 1200,
+  "max_requests_per_run": 300000,
+  "storage": {
+    "checkpoint_limit": 256,
+    "checkpoint_workers": 4
+  },
+  "process_accounting": {
+    "limit": 512,
+    "batch_size": 128,
+    "batch_wait": 1.0
+  },
+  "benchmark_options": {
+    "coser": {}
+  },
+  "protocol": "her-coser-format-v1",
+  "actor_context_window": 32768,
+  "actor_prompt_format": "coser-native-v1",
+  "actor_output_validation": "role-content-v2"
+}

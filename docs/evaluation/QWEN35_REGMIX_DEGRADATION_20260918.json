@@ -1,0 +1,131 @@
+{
+  "coser": {
+    "base": {
+      "cases": 194,
+      "cases_with_multi_speaker_labels": 0,
+      "turns": 2263,
+      "multi_label_turns": 0,
+      "mean_chars_per_turn": 179.95669465311533,
+      "median_chars_per_turn": 180
+    },
+    "regmix": {
+      "cases": 194,
+      "cases_with_multi_speaker_labels": 131,
+      "turns": 2113,
+      "multi_label_turns": 619,
+      "mean_chars_per_turn": 175.74727875059156,
+      "median_chars_per_turn": 127
+    }
+  },
+  "character": {
+    "zh/behavior_consistency_human": {
+      "stats": {
+        "n": 250,
+        "down": 115,
+        "up": 15,
+        "base_length_ok": 217,
+        "regmix_length_ok": 182,
+        "base_mean_chars": 25.176,
+        "regmix_mean_chars": 26.7
+      },
+      "examples": [
+        {
+          "id": "zh-behavior_consistency_human-0005",
+          "base_score": 5.0,
+          "regmix_score": 1.6666666666666665,
+          "base_reply": "闲时我便去河边看鸬鹚捕鱼，那姿态多像追梦人呀！(眨眨眼)",
+          "regmix_reply": "我爱看些冒险故事，幻想自己能够像故事里那样勇敢无畏。"
+        },
+        {
+          "id": "zh-behavior_consistency_human-0012",
+          "base_score": 5.0,
+          "regmix_score": 1.6666666666666665,
+          "base_reply": "就像在火锅里跳迪斯科，热闹又上头！(转圈)",
+          "regmix_reply": "我们下次再来吃麻辣烫吧~"
+        }
+      ]
+    },
+    "zh/engagement": {
+      "stats": {
+        "n": 250,
+        "down": 137,
+        "up": 20,
+        "base_length_ok": 218,
+        "regmix_length_ok": 164,
+        "base_mean_chars": 25.34,
+        "regmix_mean_chars": 29.192
+      },
+      "examples": [
+        {
+          "id": "zh-engagement-0002",
+          "base_score": 4.0,
+          "regmix_score": 1.0,
+          "base_reply": "哈哈，能全身而退，便是谢天谢地喽。",
+          "regmix_reply": "不过，陶渊明还是对现实社会充满不满，他的诗词多有讽刺和批判之意。"
+        },
+        {
+          "id": "zh-engagement-0010",
+          "base_score": 4.0,
+          "regmix_score": 1.0,
+          "base_reply": "（瞪眼）赵刚那书呆子？熏出啥香了？快给老子说！",
+          "regmix_reply": "有酒，但不够分。"
+        }
+      ]
+    },
+    "zh/human_likeness": {
+      "stats": {
+        "n": 250,
+        "down": 119,
+        "up": 20,
+        "base_length_ok": 214,
+        "regmix_length_ok": 173,
+        "base_mean_chars": 25.456,
+        "regmix_mean_chars": 29.088
+      },
+      "examples": [
+        {
+          "id": "zh-human_likeness-0039",
+          "base_score": 5.0,
+          "regmix_score": 1.0,
+          "base_reply": "二姐，我想请教你当导演的经验，这对我很重要！（期待地眨眼）",
+          "regmix_reply": "二姐，我想邀请你来看我下次演出的。"
+        },
+        {
+          "id": "zh-human_likeness-0129",
+          "base_score": 5.0,
+          "regmix_score": 1.0,
+          "base_reply": "（垂首叹气）人心难测，余常疑邻盗斧，恐难善处。",
+          "regmix_reply": "吾每存思勤备，亦易虑疑失勇。吾每存思勤备，亦易虑疑失勇。"
+        }
+      ]
+    },
+    "en/human_likeness": {
+      "stats": {
+        "n": 250,
+        "down": 116,
+        "up": 34,
+        "base_length_ok": 4,
+        "regmix_length_ok": 1,
+        "base_mean_chars": 34.34,
+        "regmix_mean_chars": 118.676
+      },
+      "examples": [
+        {
+          "id": "en-human_likeness-0029",
+          "base_score": 5.0,
+          "regmix_score": 1.0,
+          "base_reply": "(Winks) Hurry up, superstar!",
+          "regmix_reply": "Alright, I'll get ready. (Sighs softly, a smile playing on her lips)"
+        },
+        {
+          "id": "en-human_likeness-0110",
+          "base_score": 5.0,
+          "regmix_score": 1.0,
+          "base_reply": "(Smirking) Good boy.",
+          "regmix_reply": "Good. Now, let's talk about what you'll do to get me to Dumbledore. (squeezing the user's arm even tighter)"
+        }
+      ]
+    }
+  },
+  "detection_note": "Multiple distinct line-leading speaker-like labels in a single non-environment turn; heuristic, manually checked examples. English within_length_limit uses characters in frozen runner; do not interpret it as word-limit compliance."
+}

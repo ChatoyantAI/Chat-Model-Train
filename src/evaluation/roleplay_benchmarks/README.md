@@ -1,144 +1,80 @@
-# Role-play Benchmark Suite
+# 公开角色扮演评测
 
-> 状态：四套公开源已同步；下载、版本锁定、校验与执行包装已实现。31 项离线测试通过；两模型 GLM 裁判小样本试跑完成，完整官方协议评测尚未完成。
->
-> 所属模块：Evaluation；负责人 / Reviewer 沿用仓库职责登记，未另外指定。
+**从这里开始读。** 当前评测实现都在本目录；`scripts/evaluation/` 的运行命令只是启动器。
+模型部署、训练和 GPU 分配由其他模块负责，评测只连接 OpenAI 兼容端点。
 
-## 目标与边界
+## 先读三个文件
 
-整合 CoSER、CharacterBench、RMTBench、MiniMax Role-Play Bench 的官方材料，保留各自协议，不把我们的量表替代为它们的官方评分。
-逐项运行命令、配置边界和全量输入检查结果见 [运行手册](../../../../docs/evaluation/ROLEPLAY_BENCHMARK_RUNBOOK.md)。四个独立入口为 `scripts/evaluate_coser.py`、`scripts/evaluate_characterbench.py`、`scripts/evaluate_rmtbench.py`、`scripts/evaluate_minimax_roleplay.py`。前两项调用官方代码；后两项为基于官方数据与公开方法补充的实现，均支持生成、评分、汇总和断点续跑。
-第三方源码只通过固定 commit 的 Git 子模块引用；大型数据、Token、模型与评测产物不进入本仓库 Git 历史。
+1. [config.py](config.py)：选哪个 benchmark、模型/judge、并发、采样和协议约束。
+2. [unified.py](unified.py)：`prepare()` 固定输入；`run()` 启动任务、共享限流、等待落盘、汇总状态。
+3. 按需要进入 [characterbench.py](characterbench.py)、[frozen_backend.py](frozen_backend.py)（CoSER），或 [community.py](community.py)（MiniMax/RMT）。
 
-本模块负责来源锁定、可重复下载、文件 SHA-256、独立运行目录和结果汇总。
-不负责训练、不自动启动付费评测、不自动接受数据访问条款。
+命令参数在 [cli.py](cli.py)，配置样例在 [unified.example.json](../../../configs/evaluation/roleplay_benchmarks/unified.example.json)。
+安装和启动命令见[运行说明](../../../docs/evaluation/UNIFIED_PUBLIC_EVALUATION.md)。
 
-真实模型试跑范围、适配差异及结果见 [2026-09-13 试跑摘要](../../../../docs/evaluation/ROLEPLAY_SUITE_PILOT_SUMMARY_20260913.md)。本模块通用入口与服务器上的实验专用脚本不是同一个执行协议，不能混称官方成绩。
+## 一次评测怎么走
 
-## 一键下载
-
-Linux 新服务器的目录规划、隔离环境和运行者指定 GPU 方法见 [服务器部署说明](../../../../docs/evaluation/LINUX_SERVER_DEPLOYMENT.md)。部署不自动启动模型或付费评测。
-
-需要 Python 3.11+、Git，以及可访问 GitHub / Hugging Face 的网络；下载本身不需要 CUDA、PyTorch、OpenAI SDK。
-
-```bash
-# 默认同步四套，自动初始化两个固定版本的 Git 子模块
-python scripts/download_roleplay_benchmarks.py
-
-# 只下载一套
-python scripts/download_roleplay_benchmarks.py minimax
-
-# 使用你自己的本地 Token 文件（不执行其中的 shell 内容）
-python scripts/download_roleplay_benchmarks.py --env-file .local/roleplay-benchmarks.env
-
-# 对已下载的所有源校验
-python scripts/roleplay_benchmarks.py verify all
+```text
+cli.py → config.py → unified.prepare / unified.run
+                         │
+                         ├─ CharacterBench → characterbench.run
+                         ├─ CoSER          → frozen_backend.coser → 独立场景 worker
+                         └─ MiniMax / RMT  → community.run
+                                │
+                         endpoint_transport.py
+                      请求去重、共享限流、原始响应日志
+                                │
+                    生成 → 评分 → 异步存储 → 最终汇总
 ```
 
-复制 `configs/evaluation/roleplay_benchmarks/.env.example` 到 `.local/roleplay-benchmarks.env`，填写自己的 `HF_TOKEN`。
-也可以自行设置进程环境变量 `HF_TOKEN`，其优先级高于文件。Token 不作为命令行参数，不写进 manifest，不输出到日志。
-本机的实际 Token 文件被 `/.local/` 与 `*.env` 排除；示例只有空字段。
+当前流程显式传入请求客户端和存储对象，不再全局替换 `Client`、`community` 读写函数或 RMT 配置/样本构建函数。
+CoSER 的上游适配集中在 `frozen_backend.py`，只修改新任务中的 worker 副本。
 
-RMTBench 需要账号具有官方数据访问权限。401 / 403 返回明确失败，不自动同意协议、不绕过 gated access。
-重复执行会验证 SHA-256 并跳过已完成文件；中断后按文件继续，未完成的单个文件重新下载，不承诺字节级续传。
-跨域下载重定向会移除 Authorization，不把 HF Token 传给文件 CDN。
+## 各部分在哪
 
-## 大小与目录
-
-2026-09-11 当前固定版本本地统计，含公开材料，不含模型权重：
-
-| 来源 | 大小（约，十进制 MB） | 本地目录 | 内容 |
-|---|---:|---|---|
-| CoSER | 124.1 | `vendor/benchmarks/CoSER/` | 官方源码、200 个测试场景和上游附带资料 |
-| CharacterBench | 54.2 | `vendor/benchmarks/CharacterBench/` | 官方源码、13 个测试文件共 3,250 条双语样本、完整评分提示词 |
-| RMTBench | 4.0 | `data/external/roleplay_benchmarks/rmtbench/` | 论文版和更新版各中英文，共四个文件，每个 80 个角色 |
-| MiniMax | 259.0 | `data/external/roleplay_benchmarks/minimax/` | 95 个场景种子、3,135 段已发布轨迹及评分，JSONL 与 Parquet 原件 |
-| 合计 | **约 441 MB / 421 MiB** | | 不含裁判模型与运行目录 |
-
-Git 子模块对象缓存约 56 MB；合计实际占用约 498 MB / 475 MiB。建议初始预留 1 GB。
-MiniMax 两种格式为同一批数据的不同表示，不应重复计数；完整镜像保留两者。
-每次 `prepare` 会复制一份独立上游工作目录，运行输出和模型权重还会额外占用空间。
-
-## 固定来源与输入契约
-
-`configs/evaluation/roleplay_benchmarks/sources.lock.json` 保存来源 URL、不可变 commit、文件清单、协议状态、阻塞与限制。
-
-- Git：`git submodule update --init` 获取父仓库锁定的版本，随后与 lock 核对；已存在但被修改的上游拒绝使用。
-- HF：只下载锁定 revision 的文件，不使用浮动 `main`；每个文件的实际大小、SHA-256 写入被 Git 忽略的 `snapshot.json`。
-- 新 revision 不覆盖现有数据；必须另存旧快照后更新版本清单。
-- RMTBench 的 Claude 3.5 文件属于论文版，Claude 4.5 文件另列，不混算。
-
-所有文本和角色资料均视为数据，不是执行指令。
-
-## 来源与运行状态
-
-| 来源 | 已同步 | 可用执行接口 | 尚缺 |
-|---|---|---|---|
-| CoSER | 完整固定代码树及官方测试文件 | `prepare`、`run --stage evaluate` | GLM 适配小样本已运行；官方裁判/辅助模型协议仍需验证 |
-| CharacterBench | 固定源码、完整公开测试文件、评分提示词 | generate → prompts → judge → aggregate | GLM 适配小样本已运行；官方 CharacterJudge 仍未验证；全量预处理发现 3 个英文源输入错误，严格模式在付费前阻塞 |
-| RMTBench | 四份官方公开数据及论文裁判模板 | 本地实现 generate → judge → aggregate | 未公开的 Poison 数据与确切对话组合；本实现固定并记录公开子集组合 |
-| MiniMax | 全部公开数据文件 | 本地实现动态 self-play → 分块 judge → aggregate | 官方完整模拟器和裁判文案未公开；本实现提供可替换的本地文案 |
-
-访问权限解决不代表许可冲突解决：RMTBench 数据卡 Apache 标识与非商业 gate 同时存在；MiniMax 元数据与正文许可不一致；需作者澄清再作商业使用/再分发决定。
-本仓库仅保存上游 Git 引用和下载清单，不重新提交这些材料的正文。
-
-## 运行方式
-
-先复制示例配置，填写模型不可变版本、精度和实际服务 ID。不要把实际 API Key 填进 JSON。
-
-```bash
-python scripts/roleplay_benchmarks.py prepare --config configs/evaluation/roleplay_benchmarks/coser.example.json --run-dir outputs/roleplay_benchmarks/coser-example
-python scripts/roleplay_benchmarks.py run --run-dir outputs/roleplay_benchmarks/coser-example --stage evaluate
-```
-
-`run` 默认只是 dry-run。真正执行必须另加 `--execute`，且示例占位符必须全部替换。
-模型服务配置由 `BENCHMARK_BASE_URL`、`BENCHMARK_API_KEY` 环境变量提供。CoSER 上游使用同一个兼容端点访问 actor、judge、environment、next-speaker 四个模型；不能把只提供 actor 的 vLLM 地址当成全部服务。
-
-CharacterBench 分四个阶段：
-
-```bash
-python scripts/roleplay_benchmarks.py prepare --config configs/evaluation/roleplay_benchmarks/characterbench.example.json --run-dir outputs/roleplay_benchmarks/character-example
-python scripts/roleplay_benchmarks.py run --run-dir outputs/roleplay_benchmarks/character-example --stage generate
-python scripts/roleplay_benchmarks.py run --run-dir outputs/roleplay_benchmarks/character-example --stage prompts
-python scripts/roleplay_benchmarks.py run --run-dir outputs/roleplay_benchmarks/character-example --stage judge
-python scripts/roleplay_benchmarks.py run --run-dir outputs/roleplay_benchmarks/character-example --stage aggregate
-```
-
-Judge 使用本地 `CHARACTERJUDGE_PATH`，指向自己下载并固定版本的 `thu-coai/CharacterJudge`。权重不由数据下载脚本自动获取。
-两套依赖分开安装，示例 requirements 在同一配置目录下；正式环境版本需在目标机器验证和冻结。
-
-## 工程适配与原件保留
-
-不修改 `vendor`。`prepare` 只对 `outputs/.../upstream/` 副本应用精确锚点补丁，并保存完整 `engineering.patch`：
-
-- CoSER：从进程环境读取连接配置，避免在源码 config 中落地明文密钥；不改 prompt、采样温度、评分、thought 清理和重复清理。
-- CharacterBench：让 API 包装尊重实际模型参数；去掉无限重试；用 `ast.literal_eval` 替代模型输出的 `eval`；修复第五次成功仍被丢弃的问题；耗尽重试明确报错；裁判路径从环境读取。
-- 上游 CharacterBench 英文 prompt 的 15 characters 与中文 30 字限制原样保留，不能私自改成我们平台的篇幅口径。
-- 原始裁判/聚合代码保留，工程适配差异记录在 `engineering.patch` 中。
-
-## 输出契约与报告
-
-| 文件 | 内容 |
+| 职责 | 文件 |
 |---|---|
-| 数据 `snapshot.json` | revision、文件字节数、SHA-256、下载错误 |
-| 运行 `manifest.json` | 配置、源 commit、准备副本哈希、补丁哈希、阶段状态 |
-| `engineering.patch` | 上游副本的全部工程差异 |
-| `<stage>.log` | 执行日志；保存在本机 outputs，不提交 |
-| `coverage.json` | CharacterBench 覆盖率、重复 ID、解析错误，不改变原分数 |
-| 汇总 JSON / Markdown | 各自官方分数、覆盖状态、按协议分组，不计算四套混合总分 |
+| 命令入口、安装检查 | `cli.py`、`bootstrap.py` |
+| 配置、调度、共享并发 | `config.py`、`unified.py`、`execution.py` |
+| HTTP、缓存重放、失败隔离 | `endpoint_transport.py`、`benchmark_api.py` |
+| 原始证据持久化、异步派生文件、独立费用进程 | `storage.py` |
+| CharacterBench | `characterbench.py`；输入准备复用锁定的历史协议 |
+| CoSER | `frozen_backend.py`；官方生成/评分在 `vendor/benchmarks/CoSER/gca_evaluation/` |
+| MiniMax / RMT | `community.py`、`community_protocols.py`、`paper_templates.py` |
+| HER 提示格式、输出转换 | `her_official.py`、`her_coser.py`、`her_format.py` |
+| 评分校验与汇总口径 | `assessment.py` |
+| 已有结果审查、重新评分 | `assessment_audit.py`、`coser_rejudge.py` |
+| 来源下载与核验 | `sources.py`、`sources_cli.py` |
+| 原生协议审计、历史结果报告 | `preflight.py`、`runtime.py`、`reports.py` |
 
-```bash
-python scripts/roleplay_benchmarks.py report --runs outputs/roleplay_benchmarks/coser-example outputs/roleplay_benchmarks/character-example --output outputs/roleplay_benchmarks/report.json
-python -m pytest tests/evaluation/test_roleplay_benchmark_downloads.py -q
-# 或使用标准库测试下载、原生包装、两套新增流程，不依赖 pytest
-python -m unittest discover -s tests/evaluation -p 'test_benchmark_*.py' -v
-```
+`runtime.py` 保留原生协议的准备、审计工具；新评测统一走 `cli.py → unified.py`。
+三份按字节锁定的历史文件保留在 `scripts/evaluation/frozen_public_v1/`，仍有实际调用。
+`recovery_queue_guard.py` 和 `process_accounting.install()` 是历史任务的修复适配，当前调度器不调用它们。
 
-GLM 适配小样本已完成；具体范围见试跑摘要。完整官方裁判流程仍待执行，不能用小样本通过替代全量验证。
+## 写盘和恢复
 
-## 分支与此前工作恢复
+- 原始请求意图和响应：`storage.atomic_*` 在本地盘持久化后才交付，保留重复计费的恢复边界。
+- 轨迹、评分、进度：`AsyncCheckpoints` 有界异步队列，同一路径的中间状态可合并。
+- 费用流水：`ProcessLedger` 独立进程批量写入，保留 ACK 和结束时 flush。
+- 评分前确认本场景轨迹可读，最终汇总前确认派生文件写入；不会每生成一轮就扫描全部历史请求。
+- 成功请求按原有请求身份复用；未知计费状态的中断请求仍隔离，不自动重发。
 
-本分支为 `feature/evaluation-gyr`，从 `origin/main` 的 `4fdcb4c` 创建。
-此前 `codex/roleplay-sft-prep` 的未提交改动已保存在本机命名 stash：
-`snapshot: codex/roleplay-sft-prep before benchmark integration 2026-09-11`。
-该 stash 未上传；恢复前先保存当前工作，再切回旧分支并核对 `git stash list` 后 apply 对应快照。不要盲目 pop 最新 stash。
+本次整理没有改变采样、并发默认值、缓存键、原始日志布局、提示词或评分公式。
+代码哈希校验仍有效：历史任务用 manifest 对应的代码版本恢复，不绕过校验。
+
+## 协议与历史实验
+
+| Benchmark | 数据/协议范围 |
+|---|---|
+| CharacterBench | 官方样本与 rubric，历史 GLM API judge；6500 源样本中 6497 条可处理，3 条源输入无效单列 |
+| CoSER | 固定官方场景；原生/HER actor 格式由配置明确选择；默认 200 场景 |
+| MiniMax | 官方公开数据；模拟器和部分 judge 文案由本地实现，未做人类校准 |
+| RMTBench | Claude45 长对话，四块、每角色两次、seed42；排除未公开 SEC/Poison |
+
+新 `init` 默认 `assessment.version=20261018`：CoSER/HER 使用一致的显式心理可见性与角色标签；MiniMax/RMT headline 只纳入完整单位，局部结果另存。
+原有配置不自动迁移，`--assessment legacy` 保留历史协议。依据见[协议审查](../../../docs/evaluation/PROTOCOL_AUDIT_20261018.md)。
+API judge 沿用 `thinking.remote={}`，不能宣称已关闭 thinking。HER/原生 actor 提示仍有差异，共同评分不等于严格权重消融。
+四套分开报告，不合成跨 benchmark 总分，也不冒称官方排行榜复现。
+
+过去按模型命名的配置已集中到 [historical/](../../../configs/evaluation/roleplay_benchmarks/historical/README.md)，内容原样保留。
+历史报告和实验结论见[文档导航](../../../docs/evaluation/README.md)。

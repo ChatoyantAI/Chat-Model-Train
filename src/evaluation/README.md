@@ -1,10 +1,17 @@
 # Evaluation
 
-> 状态：目录与契约已建立，具体实现待模块负责人提交
+> 状态：公开角色扮演评测已实现，入口与代码导读见下文
 >
 > 主负责人：待认领
 >
 > 备份 / Reviewer：待认领
+
+## 从哪里开始
+
+先读 **[公开评测代码导读](roleplay_benchmarks/README.md)**。
+实现都在 `roleplay_benchmarks/`，按 `config.py → unified.py → 对应 benchmark` 阅读。
+运行参数在 `cli.py`，缓存请求在 `endpoint_transport.py`，异步写盘在 `storage.py`。
+安装与启动命令见[统一运行说明](../../docs/evaluation/UNIFIED_PUBLIC_EVALUATION.md)。
 
 ## 目标
 
@@ -33,20 +40,16 @@
 - 逐样本结果与汇总报告的不可变 URI/hash；
 - 与基线的差异、置信区间或适用的统计说明。
 
-## 建议布局
+## 现有模块
 
 ### 公开角色扮演基准
 
-新增 [Role-play Benchmark Suite](roleplay_benchmarks/README.md)：固定 CoSER、CharacterBench、RMTBench、MiniMax 官方来源；通过脚本下载与 SHA-256 校验，不提交大型数据或 Token。执行包装与完整评测的验证状态在模块 README 中分别列出。
+[Role-play Benchmark Suite](roleplay_benchmarks/README.md)：CoSER、CharacterBench、RMTBench、MiniMax 的统一运行器；固定官方来源，明确记录本地补充部分，通过脚本下载与 SHA-256 校验，不提交大型数据或 Token。
 
 ```text
 src/evaluation/
 ├── README.md
-├── benchmarks/
-├── inference/
-├── metrics/
-├── judges/
-└── reports/
+└── roleplay_benchmarks/    # 当前公开评测实现
 ```
 
 实现提交时，负责人必须补充最小 smoke test、正式运行命令和回归门槛。

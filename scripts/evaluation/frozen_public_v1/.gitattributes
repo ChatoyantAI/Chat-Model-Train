@@ -1,0 +1,2 @@
+# Preserve exact historical bytes; hashes are used by existing run manifests.
+*.py -text
