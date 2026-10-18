@@ -11,7 +11,11 @@
       "paper": "https://proceedings.mlr.press/v267/wang25dk.html",
       "protocol": "official-code-with-recorded-engineering-patches",
       "blockers": [],
-      "caveats": ["Published-score comparison requires the paper's GPT-4o 2024-08-06 judge and matching helper/protocol settings.", "Upstream repetition cleanup and thought removal are preserved, not silently fixed.", "Code/data access does not establish rights to redistribute underlying literary works."]
+      "caveats": [
+        "Published-score comparison requires the paper's GPT-4o 2024-08-06 judge and matching helper/protocol settings.",
+        "Upstream repetition cleanup and thought removal are preserved, not silently fixed.",
+        "Code/data access does not establish rights to redistribute underlying literary works."
+      ]
     },
     "characterbench": {
       "name": "CharacterBench",
@@ -22,7 +26,12 @@
       "paper": "https://arxiv.org/abs/2412.11912",
       "protocol": "official-code-with-recorded-engineering-patches",
       "blockers": [],
-      "caveats": ["Official prompts include a 30-character Chinese / 15-character English limit; these are preserved.", "CharacterJudge weights and their revision must be supplied separately.", "Official aggregation and the coverage/parse audit are separate outputs.", "No LICENSE file was found in the frozen code tree; redistribution permission requires clarification."]
+      "caveats": [
+        "Official prompts include a 30-character Chinese / 15-character English limit; these are preserved.",
+        "CharacterJudge weights and their revision must be supplied separately.",
+        "Official aggregation and the coverage/parse audit are separate outputs.",
+        "No LICENSE file was found in the frozen code tree; redistribution permission requires clarification."
+      ]
     },
     "rmtbench": {
       "name": "RMTBench",
@@ -32,10 +41,24 @@
       "revision": "cc17f459c84c66051215376ab892deb593343455",
       "path": "data/external/roleplay_benchmarks/rmtbench",
       "paper": "https://aclanthology.org/2025.findings-emnlp.730/",
-      "files": [".gitattributes", "README.md", "rmtbench_claude_en.json", "rmtbench_claude_zh.json", "rmtbench_claude45_en.json", "rmtbench_claude45_zh.json"],
+      "files": [
+        ".gitattributes",
+        "README.md",
+        "rmtbench_claude_en.json",
+        "rmtbench_claude_zh.json",
+        "rmtbench_claude45_en.json",
+        "rmtbench_claude45_zh.json"
+      ],
       "protocol": "source-only-incomplete-official-release",
-      "blockers": ["Official Poison-related data are not released.", "No complete official executable evaluation harness is linked in the frozen release; do not invent one and label it an exact reproduction.", "HF access requires the user's own acceptance; Apache metadata conflicts with a non-commercial-only gate."],
-      "caveats": ["Claude 3.5 files are the paper version; Claude 4.5 files are a separate dataset version.", "Replay user utterances with the tested model's own prior responses; never substitute reference assistant history."]
+      "blockers": [
+        "Official Poison-related data are not released.",
+        "No complete official executable evaluation harness is linked in the frozen release; do not invent one and label it an exact reproduction.",
+        "HF access requires the user's own acceptance; Apache metadata conflicts with a non-commercial-only gate."
+      ],
+      "caveats": [
+        "Claude 3.5 files are the paper version; Claude 4.5 files are a separate dataset version.",
+        "Replay user utterances with the tested model's own prior responses; never substitute reference assistant history."
+      ]
     },
     "minimax": {
       "name": "MiniMax Role-Play Bench",
@@ -45,10 +68,34 @@
       "revision": "3c1be2a56afbcaab19ae6b40b8a24429eae792f5",
       "path": "data/external/roleplay_benchmarks/minimax",
       "paper": "https://www.minimax.io/blog/minimax-m2-her",
-      "files": [".gitattributes", "README.md", "data/en/seeds.jsonl", "data/en/seeds.parquet", "data/en/dialogues.jsonl", "data/en/dialogues.parquet", "data/en/evaluations.jsonl", "data/en/evaluations.parquet", "data/zh/seeds.jsonl", "data/zh/seeds.parquet", "data/zh/dialogues.jsonl", "data/zh/dialogues.parquet", "data/zh/evaluations.jsonl", "data/zh/evaluations.parquet"],
+      "files": [
+        "README.md",
+        "data/en/seeds.jsonl",
+        "data/zh/seeds.jsonl"
+      ],
       "protocol": "source-only-incomplete-official-release",
-      "blockers": ["Only a subset of the full benchmark is public.", "Exact User Simulator prompts, judge prompts and complete executable scoring harness are not supplied in the frozen release."],
-      "caveats": ["The 95 seeds are scenarios; existing trajectories and scores are published model outputs, not additional test prompts.", "License metadata says Apache-2.0 while the README footer says CC BY 4.0 / CC BY-SA 4.0; clarify before redistribution."]
+      "blockers": [
+        "Only a subset of the full benchmark is public.",
+        "Exact User Simulator prompts, judge prompts and complete executable scoring harness are not supplied in the frozen release."
+      ],
+      "caveats": [
+        "The 95 seeds are scenarios; existing trajectories and scores are published model outputs, not additional test prompts.",
+        "License metadata says Apache-2.0 while the README footer says CC BY 4.0 / CC BY-SA 4.0; clarify before redistribution.",
+        "Only the 95 seed scenarios are required for evaluation. Published model dialogues, scores and duplicate Parquet files are optional reference assets."
+      ],
+      "reference_files": [
+        ".gitattributes",
+        "data/en/seeds.parquet",
+        "data/en/dialogues.jsonl",
+        "data/en/dialogues.parquet",
+        "data/en/evaluations.jsonl",
+        "data/en/evaluations.parquet",
+        "data/zh/seeds.parquet",
+        "data/zh/dialogues.jsonl",
+        "data/zh/dialogues.parquet",
+        "data/zh/evaluations.jsonl",
+        "data/zh/evaluations.parquet"
+      ]
     }
   }
 }

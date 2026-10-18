@@ -1,6 +1,14 @@
-# 数据资产说明目录
+# 数据资产与评测输入
 
-本目录不是大型数据集存储。它只保存可进入 Git 的数据契约与索引，例如：
+四套固定评测输入集中在 [evaluation/roleplay_benchmarks/](evaluation/roleplay_benchmarks/README.md)，已纳入 Git，约 60.4 MiB。
+包含 CoSER 测试集、CharacterBench 原始测试输入、RMTBench 两个版本的中英文输入，以及 MiniMax 的 95 条场景输入。
+原文件按字节保留；来源 revision、文件大小和 SHA-256 见该目录的 `manifest.json`。
+
+安装器优先校验这些文件，再恢复到原有运行路径。模型权重、训练集、API 密钥和评测响应缓存仍不进入 Git。
+
+## 其他数据资产
+
+除上述明确版本化的评测输入外，本目录保存数据契约与索引，例如：
 
 - schema 和字段字典；
 - 数据版本 manifest；

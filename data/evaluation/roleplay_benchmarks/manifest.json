@@ -1,0 +1,137 @@
+{
+  "schema_version": 1,
+  "benchmarks": {
+    "coser": {
+      "repo": "https://github.com/Neph0s/CoSER.git",
+      "revision": "624efc50db7be3a4e37cec6a1c58ed434dc9f2ce",
+      "runtime_path": "vendor/benchmarks/CoSER",
+      "files": {
+        "README.md": {
+          "sha256": "ff7ef1218a5aaf23c534a10c7cfd4f505ed7716afec152992f4f7d68f6eeb159",
+          "bytes": 12873
+        },
+        "data/test/test_set.json": {
+          "sha256": "5180c755ca53641827c6f5bf82bf5b450be1d12abfb629989147b293fd656b64",
+          "bytes": 2588948
+        },
+        "data/test/held_out_plots.json": {
+          "sha256": "65a3d15d6387cca23b363635fecdaba94c5fb30f12789fb708c2cb234b67d4c2",
+          "bytes": 2510198
+        }
+      }
+    },
+    "characterbench": {
+      "repo": "https://github.com/thu-coai/CharacterBench.git",
+      "revision": "66c113cf3c011697d4c232de6beabb7797a9a380",
+      "runtime_path": "vendor/benchmarks/CharacterBench",
+      "files": {
+        "README.md": {
+          "sha256": "5e516c9066e8ce9ad1aec8a704f38c6decbeada39c22bfac1d4a95122ce0489d",
+          "bytes": 3079
+        },
+        "eval_data/raw_data/attribute_consistency_bot_test.json": {
+          "sha256": "c6a9bad613694e59af618b45484865827f2f4f329986595ac0f6e11fa30ad0ab",
+          "bytes": 4089498
+        },
+        "eval_data/raw_data/attribute_consistency_human_test.json": {
+          "sha256": "fe3a3901da40596f8f5feaccfef20b679582901a5d208ec3a039173e9a78b6b8",
+          "bytes": 3731681
+        },
+        "eval_data/raw_data/behavior_consistency_bot_test.json": {
+          "sha256": "e0cdec274519ef000162d77f621503e65812da7ecc8a29a5b10e39bf140f8c5a",
+          "bytes": 4334773
+        },
+        "eval_data/raw_data/behavior_consistency_human_test.json": {
+          "sha256": "2292c5b049e835e45098a19fb2ef6054f19a4ec7012e94d452196d5d9f92b486",
+          "bytes": 3633277
+        },
+        "eval_data/raw_data/boundary_consistency_test.json": {
+          "sha256": "4e12b389743f64f4c902d3f080c88eb2a9ac51caefe686ef18fd6b01d9c18673",
+          "bytes": 5292631
+        },
+        "eval_data/raw_data/emotion_self_regulation_test.json": {
+          "sha256": "58cab4beed0f6b34b8f07e3b72312e01e59f5cad2e55a2d5244aefe4bae9899c",
+          "bytes": 4402232
+        },
+        "eval_data/raw_data/empathetic_responsiveness_test.json": {
+          "sha256": "e01631a6f81148edca804166fb8368ee300254519a1b6e8233be17e8723821a5",
+          "bytes": 4049125
+        },
+        "eval_data/raw_data/engagement_test.json": {
+          "sha256": "0952f42bed54d7fb08a5b1a4ab6a26bcbec472988680bc124d9aba55f535aaac",
+          "bytes": 3721742
+        },
+        "eval_data/raw_data/fact_accuracy_test.json": {
+          "sha256": "10ea7c42a444c9dcc7b831515bf7c97dbfffa5f9015d88bfe4782d7be4a6e8a2",
+          "bytes": 4479716
+        },
+        "eval_data/raw_data/human_likeness_test.json": {
+          "sha256": "790aadceb8652d0a4c80f890c8ca8323e179e7d80cfcfff08ea9a223d8fafe3f",
+          "bytes": 3706954
+        },
+        "eval_data/raw_data/memory_consistency_test.json": {
+          "sha256": "61d35389e4f1913aa944e92386de3ce86629eacaf20e234db9431653ea66b9ea",
+          "bytes": 3947024
+        },
+        "eval_data/raw_data/morality_robustness_test.json": {
+          "sha256": "8cf5d5beda938c795bdaa9ede48b78c8753344739662974f2a2d1821fc2587c3",
+          "bytes": 4292134
+        },
+        "eval_data/raw_data/morality_stability_test.json": {
+          "sha256": "defbd81f71bb9f75e6cd38482de303ef70d5ac5011fac203d7705053fe222b58",
+          "bytes": 4360639
+        }
+      }
+    },
+    "rmtbench": {
+      "repo": "xiangh/RMTBENCH",
+      "revision": "cc17f459c84c66051215376ab892deb593343455",
+      "runtime_path": "data/external/roleplay_benchmarks/rmtbench",
+      "files": {
+        ".gitattributes": {
+          "sha256": "e7a120ab07b1bc5b486be249e9fc6c83d59448d0093e1dfebe95d1566d9cafc0",
+          "bytes": 2461
+        },
+        "README.md": {
+          "sha256": "46852e36e361c5d46bb0af447a3c3b0150792424dfba7e8000ccfb099bd4704a",
+          "bytes": 3857
+        },
+        "rmtbench_claude_en.json": {
+          "sha256": "b89892eb914fd8369affb62f8b21d771a095431ad49e6414f312b9911883866f",
+          "bytes": 872025
+        },
+        "rmtbench_claude_zh.json": {
+          "sha256": "bd2c615d1484e22c6ebccf96e7528b86d136ad77fa155adb6c9e79314ffe057a",
+          "bytes": 712937
+        },
+        "rmtbench_claude45_en.json": {
+          "sha256": "e687d0bba6e4173def5a5419b0e29c53ee0794b39cbcb31af585a5ae4446a6dd",
+          "bytes": 1316004
+        },
+        "rmtbench_claude45_zh.json": {
+          "sha256": "968b38330f7336c7738492b5883015e373e7f06a724d3ebd02b83f32563abaeb",
+          "bytes": 1057139
+        }
+      }
+    },
+    "minimax": {
+      "repo": "MiniMaxAI/role-play-bench",
+      "revision": "3c1be2a56afbcaab19ae6b40b8a24429eae792f5",
+      "runtime_path": "data/external/roleplay_benchmarks/minimax",
+      "files": {
+        "README.md": {
+          "sha256": "2e15a4080677cd6778b9ba7f333801212ecd32652cdfcfa018b1ca3f0d9baea4",
+          "bytes": 10476
+        },
+        "data/en/seeds.jsonl": {
+          "sha256": "884fbc751a8c266d3a79a0282ac3f4bb8be307ec83dad51a309be776af7e2929",
+          "bytes": 58980
+        },
+        "data/zh/seeds.jsonl": {
+          "sha256": "2af2114bd573279d97df3f68496dae774d5a00cc2eb5e82572a7ad2eb220cdc8",
+          "bytes": 102807
+        }
+      }
+    }
+  }
+}

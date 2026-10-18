@@ -11,6 +11,7 @@
 
 命令参数在 [cli.py](cli.py)，配置样例在 [unified.example.json](../../../configs/evaluation/roleplay_benchmarks/unified.example.json)。
 安装和启动命令见[运行说明](../../../docs/evaluation/UNIFIED_PUBLIC_EVALUATION.md)。
+原始评测输入见[数据目录](../../../data/evaluation/roleplay_benchmarks/README.md)，四套均已入库；`sources.restore_bundled()` 负责校验并恢复到原运行路径。
 
 ## 一次评测怎么走
 

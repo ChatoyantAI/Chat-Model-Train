@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import time
 import urllib.error
@@ -123,13 +124,50 @@ def verify_git(spec):
     }}
 
 
+def restore_bundled(name, spec):
+    """Copy verified, unchanged evaluation inputs into the existing runtime layout."""
+    bundle = ROOT / "data/evaluation/roleplay_benchmarks"
+    catalog = bundle / "manifest.json"
+    if not catalog.is_file():
+        return 0
+    entry = read_json(catalog)["benchmarks"].get(name)
+    if entry is None:
+        return 0
+    if entry["revision"] != spec["revision"] or entry["repo"] != spec["repo"]:
+        raise ValueError(f"Bundled {name} revision/source differs from sources.lock.json")
+    target = inside(ROOT, spec["path"])
+    copied = 0
+    for relative, record in entry["files"].items():
+        source = inside(bundle / name, relative)
+        destination = inside(target, relative)
+        if source.stat().st_size != record["bytes"] or digest(source) != record["sha256"]:
+            raise ValueError(f"Bundled {name} file is missing or modified: {relative}")
+        if destination.exists():
+            if digest(destination) != record["sha256"]:
+                raise ValueError(f"Existing {name} input differs; archive it before restoring: {relative}")
+            continue
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        partial = destination.with_suffix(destination.suffix + ".partial")
+        shutil.copyfile(source, partial)
+        partial.replace(destination)
+        copied += 1
+    if spec["kind"] == "hf_dataset" and not (target / "snapshot.json").exists():
+        write_json(target / "snapshot.json", {
+            "status": "complete", "repo": spec["repo"], "revision": spec["revision"],
+            "files": entry["files"], "errors": {},
+        })
+    return copied
+
+
 def sync_one(name, spec):
     if spec["kind"] == "git":
         if not (inside(ROOT, spec["path"]) / ".git").exists():
             subprocess.run(["git", "submodule", "update", "--init", "--", spec["path"]], cwd=ROOT, check=True)
+        restore_bundled(name, spec)
         result = verify_git(spec)
         write_json(ROOT / f"data/external/roleplay_benchmarks/{name}/snapshot.json", result)
         return result
+    restore_bundled(name, spec)
     target = inside(ROOT, spec["path"])
     manifest_path = target / "snapshot.json"
     previous = read_json(manifest_path) if manifest_path.exists() else {}

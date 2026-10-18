@@ -20,14 +20,16 @@
 Python 3.11+ 和 Git 是系统前置条件；无需 CUDA、torch 或 vLLM。以 Linux 为例：
 
 ```bash
-git clone --branch main https://github.com/ChatoyantAI/Chat-Model-Train.git
+git clone --recurse-submodules --branch main https://github.com/ChatoyantAI/Chat-Model-Train.git
 cd Chat-Model-Train
 python3 scripts/evaluation/setup_public_evaluation.py --benchmarks characterbench coser
 ```
 
 安装器会建立用户目录下的独立虚拟环境、安装锁定依赖、初始化固定 benchmark 子模块、准备 CoSER tokenizer。
 默认环境位于 `~/.cache/chat-model-train/eval-venv`，不是服务器专有路径。
-要准备四套，省略 `--benchmarks`；RMT 数据需要自己的 Hugging Face 访问授权，使用 `--env-file` 提供 `HF_TOKEN`。
+要准备四套，省略 `--benchmarks`。四套输入已随仓库放在 [data/evaluation/roleplay_benchmarks/](../../data/evaluation/roleplay_benchmarks/README.md)，安装器优先校验并复用，HF 输入不再重复下载。
+只有仓库数据副本缺失、需要回源下载 RMT 时，才需要自己的 Hugging Face 访问授权，并通过 `--env-file` 提供 `HF_TOKEN`。
+MiniMax 仅要求 95 个场景输入，不再为了运行评测下载其他模型的大体积参考对话和重复 Parquet 文件；RMT 论文评分模板仍按原哈希下载与缓存。
 若已有数据，用 `--cache-from /已有仓库根目录` 复用哈希匹配的下载文件，既不重复下载也不复制旧评测结果。
 安装不会发模型请求，不会启动模型服务。Windows 使用 `python` 安装，再用虚拟环境的 `Scripts/python.exe` 调用 Python 入口即可。
 
@@ -145,6 +147,8 @@ CharacterBench 原始6500条中有3条英文输入无效，单独记录 source_i
 它们仍被当前入口引用，不是可随意删除的过时代码。底层原生协议检查和报告库用于审计，不再提供四个竞争的启动脚本。
 
 ## 已完成验证与边界
+
+2026-10-18 数据打包：26 份上游文件、63,293,210 字节已入库，Git 暂存内容与原缓存的 SHA-256 全部一致。151 项离线回归全部通过，74.334 秒，0 失败、0 跳过；新增检查覆盖无 HF 下载恢复、恢复前后样本一致、损坏副本拒绝和已有不同文件保留。
 
 2026-10-18 目录/依赖整理：147 项离线回归全部通过，包含本地 HTTP 并发、缓存重放、异步写入、独立费用进程、HER/CoSER 评分契约与旧缓存恢复。
 新增检查逐条比较迁出的 CharacterBench 与冻结版请求、重试及分数，并确认旧请求身份的原始响应可复用且新增调用为 0。

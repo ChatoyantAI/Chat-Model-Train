@@ -56,6 +56,7 @@ def prepare_assets(names, cache_from=None):
             if not (source / '.git').exists():
                 subprocess.run(['git', 'submodule', 'update', '--init', '--', spec['path']],
                                cwd=sources.ROOT, check=True)
+            sources.restore_bundled(name, spec)
             verify_source(name)
             continue
         if cache_from:

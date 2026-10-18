@@ -26,3 +26,6 @@
 *.safetensors binary
 *.pt binary
 *.pth binary
+
+# Evaluation inputs retain upstream bytes so SHA-256 matches on every platform.
+/data/evaluation/roleplay_benchmarks/** -text
