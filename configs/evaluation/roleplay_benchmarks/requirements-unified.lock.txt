@@ -14,7 +14,7 @@ idna==3.20
 jiter==0.17.0
 joblib==1.6.0
 jsonlines==4.0.0
-nltk==3.10.3
+nltk==3.10.4
 openai==3.16.2
 pydantic==2.13.5
 pydantic_core==2.46.5
